@@ -21,10 +21,12 @@ export const processFiles = async (
     getFileManipulator,
   },
 ): Promise<ProcessedFile[]> => {
-  const taskRunner = deps.initTaskRunner<FileProcessTask, ProcessedFile>(
-    rawFiles.length,
-    new URL('./workers/fileProcessWorker.js', import.meta.url).href,
-  );
+  const taskRunner = deps.initTaskRunner<FileProcessTask, ProcessedFile>({
+    numOfTasks: rawFiles.length,
+    workerPath: new URL('./workers/fileProcessWorker.js', import.meta.url).href,
+    // High memory usage and leak risk
+    runtime: 'child_process',
+  });
   const tasks = rawFiles.map(
     (rawFile, _index) =>
       ({

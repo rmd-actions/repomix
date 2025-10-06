@@ -23,10 +23,11 @@ export const calculateSelectiveFileMetrics = async (
     return [];
   }
 
-  const taskRunner = deps.initTaskRunner<FileMetricsTask, FileMetrics>(
-    filesToProcess.length,
-    new URL('./workers/fileMetricsWorker.js', import.meta.url).href,
-  );
+  const taskRunner = deps.initTaskRunner<FileMetricsTask, FileMetrics>({
+    numOfTasks: filesToProcess.length,
+    workerPath: new URL('./workers/fileMetricsWorker.js', import.meta.url).href,
+    runtime: 'child_process',
+  });
   const tasks = filesToProcess.map(
     (file, index) =>
       ({
