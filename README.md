@@ -478,6 +478,76 @@ src/
 
 This format provides a clean, readable structure that is both human-friendly and easily parseable by AI systems.
 
+#### JSON Format
+
+To generate output in JSON format, use the `--style json` option:
+
+```bash
+repomix --style json
+```
+
+The JSON format structures the content as a hierarchical JSON object with camelCase property names:
+
+```json
+{
+  "fileSummary": {
+    "generationHeader": "This file is a merged representation of the entire codebase, combined into a single document by Repomix.",
+    "purpose": "This file contains a packed representation of the entire repository's contents...",
+    "fileFormat": "The content is organized as follows...",
+    "usageGuidelines": "- This file should be treated as read-only...",
+    "notes": "- Some files may have been excluded based on .gitignore rules..."
+  },
+  "userProvidedHeader": "Custom header text if specified",
+  "directoryStructure": "src/\n  cli/\n    cliOutput.ts\n    index.ts\n  config/\n    configLoader.ts",
+  "files": {
+    "src/index.js": "// File contents here",
+    "src/utils.js": "// File contents here"
+  },
+  "instruction": "Custom instructions from instructionFilePath"
+}
+```
+
+This format is ideal for:
+- **Programmatic processing**: Easy to parse and manipulate with JSON libraries
+- **API integration**: Direct consumption by web services and applications  
+- **AI tool compatibility**: Structured format for machine learning and AI systems
+- **Data analysis**: Straightforward extraction of specific information using tools like `jq`
+
+##### Working with JSON Output Using `jq`
+
+The JSON format makes it easy to extract specific information programmatically:
+
+```bash
+# List all file paths
+cat repomix-output.json | jq -r '.files | keys[]'
+
+# Count total number of files
+cat repomix-output.json | jq '.files | keys | length'
+
+# Extract specific file content
+cat repomix-output.json | jq -r '.files["README.md"]'
+cat repomix-output.json | jq -r '.files["src/index.js"]'
+
+# Find files by extension
+cat repomix-output.json | jq -r '.files | keys[] | select(endswith(".ts"))'
+
+# Get files containing specific text
+cat repomix-output.json | jq -r '.files | to_entries[] | select(.value | contains("function")) | .key'
+
+# Extract directory structure
+cat repomix-output.json | jq -r '.directoryStructure'
+
+# Get file summary information
+cat repomix-output.json | jq '.fileSummary.purpose'
+cat repomix-output.json | jq -r '.fileSummary.generationHeader'
+
+# Extract user-provided header (if exists)
+cat repomix-output.json | jq -r '.userProvidedHeader // "No header provided"'
+
+# Create a file list with sizes
+cat repomix-output.json | jq -r '.files | to_entries[] | "\(.key): \(.value | length) characters"'
+```
+
 #### Plain Text Format
 
 To generate output in plain text format, use the `--style plain` option:
@@ -531,60 +601,60 @@ Instruction
 ### Command Line Options
 
 #### Basic Options
-- `-v, --version`: Show tool version
+- `-v, --version`: Show version information and exit
 
 #### CLI Input/Output Options
-- `--verbose`: Enable verbose logging
-- `--quiet`: Disable all output to stdout
-- `--stdout`: Output to stdout instead of writing to a file (cannot be used with `--output` option)
-- `--stdin`: Read file paths from stdin instead of discovering files automatically
-- `--copy`: Additionally copy generated output to system clipboard
-- `--token-count-tree [threshold]`: Display file tree with token count summaries (optional: minimum token count threshold). Useful for identifying large files and optimizing token usage for AI context limits
-- `--top-files-len <number>`: Number of top files to display in the summary
+- `--verbose`: Enable detailed debug logging (shows file processing, token counts, and configuration details)
+- `--quiet`: Suppress all console output except errors (useful for scripting)
+- `--stdout`: Write packed output directly to stdout instead of a file (suppresses all logging)
+- `--stdin`: Read file paths from stdin, one per line (specified files are processed directly)
+- `--copy`: Copy the generated output to system clipboard after processing
+- `--token-count-tree [threshold]`: Show file tree with token counts; optional threshold to show only files with ≥N tokens (e.g., --token-count-tree 100)
+- `--top-files-len <number>`: Number of largest files to show in summary (default: 5, e.g., --top-files-len 20)
 
 #### Repomix Output Options
-- `-o, --output <file>`: Specify the output file name
-- `--style <style>`: Specify the output style (`xml`, `markdown`, `plain`)
-- `--parsable-style`: Enable parsable output based on the chosen style schema. Note that this can increase token count.
-- `--compress`: Perform intelligent code extraction, focusing on essential function and class signatures to reduce token count
-- `--output-show-line-numbers`: Show line numbers in the output
-- `--no-file-summary`: Disable file summary section output
-- `--no-directory-structure`: Disable directory structure section output
-- `--no-files`: Disable files content output (metadata-only mode)
-- `--remove-comments`: Remove comments from supported file types
-- `--remove-empty-lines`: Remove empty lines from the output
-- `--truncate-base64`: Enable truncation of base64 data strings
-- `--header-text <text>`: Custom text to include in the file header
-- `--instruction-file-path <path>`: Path to a file containing detailed custom instructions
-- `--include-empty-directories`: Include empty directories in the output
-- `--no-git-sort-by-changes`: Disable sorting files by git change count (enabled by default)
-- `--include-diffs`: Include git diffs in the output (includes both work tree and staged changes separately)
-- `--include-logs`: Include git logs in the output (includes commit history with dates, messages, and file paths)
-- `--include-logs-count <count>`: Number of git log commits to include (default: 50)
+- `-o, --output <file>`: Output file path (default: repomix-output.xml, use "-" for stdout)
+- `--style <style>`: Output format: xml, markdown, json, or plain (default: xml)
+- `--parsable-style`: Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting)
+- `--compress`: Extract essential code structure (classes, functions, interfaces) using Tree-sitter parsing
+- `--output-show-line-numbers`: Prefix each line with its line number in the output
+- `--no-file-summary`: Omit the file summary section from output
+- `--no-directory-structure`: Omit the directory tree visualization from output
+- `--no-files`: Generate metadata only without file contents (useful for repository analysis)
+- `--remove-comments`: Strip all code comments before packing
+- `--remove-empty-lines`: Remove blank lines from all files
+- `--truncate-base64`: Truncate long base64 data strings to reduce output size
+- `--header-text <text>`: Custom text to include at the beginning of the output
+- `--instruction-file-path <path>`: Path to file containing custom instructions to include in output
+- `--include-empty-directories`: Include folders with no files in directory structure
+- `--no-git-sort-by-changes`: Don't sort files by git change frequency (default: most changed files first)
+- `--include-diffs`: Add git diff section showing working tree and staged changes
+- `--include-logs`: Add git commit history with messages and changed files
+- `--include-logs-count <count>`: Number of recent commits to include with --include-logs (default: 50)
 
 #### File Selection Options
-- `--include <patterns>`: List of include patterns (comma-separated)
-- `-i, --ignore <patterns>`: Additional ignore patterns (comma-separated)
-- `--no-gitignore`: Disable .gitignore file usage
-- `--no-default-patterns`: Disable default patterns
+- `--include <patterns>`: Include only files matching these glob patterns (comma-separated, e.g., "src/**/*.js,*.md")
+- `-i, --ignore <patterns>`: Additional patterns to exclude (comma-separated, e.g., "*.test.js,docs/**")
+- `--no-gitignore`: Don't use .gitignore rules for filtering files
+- `--no-default-patterns`: Don't apply built-in ignore patterns (node_modules, .git, build dirs, etc.)
 
 #### Remote Repository Options
-- `--remote <url>`: Process a remote Git repository
-- `--remote-branch <name>`: Specify the remote branch name, tag, or commit hash (defaults to repository default branch)
+- `--remote <url>`: Clone and pack a remote repository (GitHub URL or user/repo format)
+- `--remote-branch <name>`: Specific branch, tag, or commit to use (default: repository's default branch)
 
 #### Configuration Options
-- `-c, --config <path>`: Path to a custom config file
-- `--init`: Create config file
-- `--global`: Use global config
+- `-c, --config <path>`: Use custom config file instead of repomix.config.json
+- `--init`: Create a new repomix.config.json file with defaults
+- `--global`: With --init, create config in home directory instead of current directory
 
 #### Security Options
-- `--no-security-check`: Disable security check
+- `--no-security-check`: Skip scanning for sensitive data like API keys and passwords
 
 #### Token Count Options
-- `--token-count-encoding <encoding>`: Specify token count encoding used by OpenAI's [tiktoken](https://github.com/openai/tiktoken) tokenizer (e.g., `o200k_base` for GPT-4o, `cl100k_base` for GPT-4/3.5). See [tiktoken model.py](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py#L24) for encoding details.
+- `--token-count-encoding <encoding>`: Tokenizer model for counting: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4), etc. (default: o200k_base)
 
 #### MCP
-- `--mcp`: Run as a [MCP (Model Context Protocol)](https://modelcontextprotocol.io) server
+- `--mcp`: Run as Model Context Protocol server for AI tool integration
 
 #### Examples
 
@@ -937,7 +1007,7 @@ Here's an explanation of the configuration options:
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------|------------------------|
 | `input.maxFileSize`              | Maximum file size in bytes to process. Files larger than this will be skipped                                                | `50000000`            |
 | `output.filePath`                | The name of the output file                                                                                                  | `"repomix-output.xml"` |
-| `output.style`                   | The style of the output (`xml`, `markdown`, `plain`)                                                                         | `"xml"`                |
+| `output.style`                   | The style of the output (`xml`, `markdown`, `json`, `plain`)                                                                 | `"xml"`                |
 | `output.parsableStyle`           | Whether to escape the output based on the chosen style schema. Note that this can increase token count.                      | `false`                |
 | `output.compress`                | Whether to perform intelligent code extraction to reduce token count                                                         | `false`                |
 | `output.headerText`              | Custom text to include in the file header                                                                                    | `null`                 |
@@ -1203,6 +1273,14 @@ Use `--style` to generate output in different formats:
     style: markdown
 ```
 
+```yaml
+- name: Pack repository with Repomix (JSON format)
+  uses: yamadashy/repomix/.github/actions/repomix@main
+  with:
+    output: repomix-output.json
+    style: json
+```
+
 Pack specific directories with compression:
 
 ```yaml
@@ -1276,7 +1354,7 @@ See the complete workflow example [here](https://github.com/yamadashy/repomix/bl
 | `ignore` | Comma-separated glob patterns to ignore files (e.g., `**/*.test.ts,**/node_modules/**`) | `""` |
 | `output` | Relative path for the packed file (extension determines format: `.txt`, `.md`, `.xml`) | `repomix-output.xml` |
 | `compress` | Enable smart compression to reduce output size by pruning implementation details | `true` |
-| `style` | Output style (`xml`, `markdown`, `plain`) | `xml` |
+| `style` | Output style (`xml`, `markdown`, `json`, `plain`) | `xml` |
 | `additional-args` | Extra raw arguments for the repomix CLI (e.g., `--no-file-summary --no-security-check`) | `""` |
 | `repomix-version` | Version of the npm package to install (supports semver ranges, tags, or specific versions like `0.2.25`) | `latest` |
 
