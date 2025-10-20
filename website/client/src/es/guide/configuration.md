@@ -1,8 +1,18 @@
 # Configuración
 
-Repomix puede configurarse mediante un archivo de configuración (`repomix.config.json`) o opciones de línea de comandos. El archivo de configuración le permite personalizar varios aspectos de cómo se procesa y genera la salida de su base de código.
+Repomix puede configurarse mediante un archivo de configuración o opciones de línea de comandos. El archivo de configuración le permite personalizar varios aspectos de cómo se procesa y genera la salida de su base de código.
 
-## Inicio rápido
+## Formatos de archivos de configuración
+
+Repomix admite múltiples formatos de archivos de configuración para mayor flexibilidad y facilidad de uso.
+
+Repomix buscará automáticamente archivos de configuración en el siguiente orden de prioridad:
+
+1. **TypeScript** (`repomix.config.ts`, `repomix.config.mts`, `repomix.config.cts`)
+2. **JavaScript/ES Module** (`repomix.config.js`, `repomix.config.mjs`, `repomix.config.cjs`)
+3. **JSON** (`repomix.config.json5`, `repomix.config.jsonc`, `repomix.config.json`)
+
+### Configuración JSON
 
 Cree un archivo de configuración en el directorio de su proyecto:
 ```bash
@@ -14,6 +24,62 @@ Esto creará un archivo `repomix.config.json` con la configuración predetermina
 ```bash
 repomix --init --global
 ```
+
+### Configuración TypeScript
+
+Los archivos de configuración TypeScript ofrecen la mejor experiencia de desarrollo con verificación completa de tipos y soporte IDE.
+
+**Instalación:**
+
+Para usar la configuración TypeScript o JavaScript con `defineConfig`, debe instalar Repomix como dependencia de desarrollo:
+
+```bash
+npm install -D repomix
+```
+
+**Ejemplo:**
+
+```typescript
+// repomix.config.ts
+import { defineConfig } from 'repomix';
+
+export default defineConfig({
+  output: {
+    filePath: 'output.xml',
+    style: 'xml',
+    removeComments: true,
+  },
+  ignore: {
+    customPatterns: ['**/node_modules/**', '**/dist/**'],
+  },
+});
+```
+
+**Ventajas:**
+- ✅ Verificación completa de tipos TypeScript en su IDE
+- ✅ Excelente autocompletado e IntelliSense del IDE
+- ✅ Uso de valores dinámicos (marcas de tiempo, variables de entorno, etc.)
+
+**Ejemplo de valores dinámicos:**
+
+```typescript
+// repomix.config.ts
+import { defineConfig } from 'repomix';
+
+// Generar nombre de archivo basado en marca de tiempo
+const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+
+export default defineConfig({
+  output: {
+    filePath: `output-${timestamp}.xml`,
+    style: 'xml',
+  },
+});
+```
+
+### Configuración JavaScript
+
+Los archivos de configuración JavaScript funcionan igual que TypeScript, admitiendo `defineConfig` y valores dinámicos.
 
 ## Opciones de configuración
 
@@ -126,21 +192,59 @@ Aquí hay un ejemplo de un archivo de configuración completo (`repomix.config.j
 ## Ubicaciones de los archivos de configuración
 
 Repomix busca los archivos de configuración en el siguiente orden:
-1. Archivo de configuración local (`repomix.config.json`) en el directorio actual
-2. Archivo de configuración global:
-   - Windows: `%LOCALAPPDATA%\Repomix\repomix.config.json`
-   - macOS/Linux: `~/.config/repomix/repomix.config.json`
+1. Archivo de configuración local en el directorio actual (orden de prioridad: TS > JS > JSON)
+   - TypeScript: `repomix.config.ts`, `repomix.config.mts`, `repomix.config.cts`
+   - JavaScript: `repomix.config.js`, `repomix.config.mjs`, `repomix.config.cjs`
+   - JSON: `repomix.config.json5`, `repomix.config.jsonc`, `repomix.config.json`
+2. Archivo de configuración global (orden de prioridad: TS > JS > JSON)
+   - Windows:
+     - TypeScript: `%LOCALAPPDATA%\Repomix\repomix.config.ts`, `.mts`, `.cts`
+     - JavaScript: `%LOCALAPPDATA%\Repomix\repomix.config.js`, `.mjs`, `.cjs`
+     - JSON: `%LOCALAPPDATA%\Repomix\repomix.config.json5`, `.jsonc`, `.json`
+   - macOS/Linux:
+     - TypeScript: `~/.config/repomix/repomix.config.ts`, `.mts`, `.cts`
+     - JavaScript: `~/.config/repomix/repomix.config.js`, `.mjs`, `.cjs`
+     - JSON: `~/.config/repomix/repomix.config.json5`, `.jsonc`, `.json`
 
 Las opciones de línea de comandos tienen prioridad sobre la configuración del archivo.
 
+## Patrones de inclusión
+
+Repomix admite especificar archivos para incluir usando [patrones glob](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax). Esto permite una selección de archivos más flexible y potente:
+
+- Use `**/*.js` para incluir todos los archivos JavaScript en cualquier directorio
+- Use `src/**/*` para incluir todos los archivos dentro del directorio `src` y sus subdirectorios
+- Combine múltiples patrones como `["src/**/*.js", "**/*.md"]` para incluir archivos JavaScript en `src` y todos los archivos Markdown
+
+Puede especificar patrones de inclusión en su archivo de configuración:
+
+```json
+{
+  "include": ["src/**/*", "tests/**/*.test.js"]
+}
+```
+
+O use la opción de línea de comandos `--include` para filtrado único.
+
 ## Patrones de ignorar
 
-Repomix proporciona múltiples formas de especificar qué archivos deben ignorarse. Los patrones se procesan en el siguiente orden de prioridad:
+Repomix ofrece múltiples métodos para establecer patrones de ignorar para excluir archivos o directorios específicos durante el proceso de empaquetado:
 
-1. Opciones de CLI (`--ignore`)
-2. Archivo `.repomixignore` en el directorio del proyecto
-3. `.gitignore` y `.git/info/exclude` (si `ignore.useGitignore` es verdadero)
-4. Patrones predeterminados (si `ignore.useDefaultPatterns` es verdadero)
+- **.gitignore**: Por defecto, se utilizan los patrones listados en los archivos `.gitignore` de su proyecto y `.git/info/exclude`. Este comportamiento se puede controlar con la configuración `ignore.useGitignore` o la opción CLI `--no-gitignore`.
+- **Patrones predeterminados**: Repomix incluye una lista predeterminada de archivos y directorios comúnmente excluidos (por ejemplo, node_modules, .git, archivos binarios). Esta característica se puede controlar con la configuración `ignore.useDefaultPatterns` o la opción CLI `--no-default-patterns`. Consulte [defaultIgnore.ts](https://github.com/yamadashy/repomix/blob/main/src/config/defaultIgnore.ts) para más detalles.
+- **.repomixignore**: Puede crear un archivo `.repomixignore` en la raíz de su proyecto para definir patrones de ignorar específicos de Repomix. Este archivo sigue el mismo formato que `.gitignore`.
+- **Patrones personalizados**: Se pueden especificar patrones de ignorar adicionales usando la opción `ignore.customPatterns` en el archivo de configuración. Puede sobrescribir esta configuración con la opción de línea de comandos `-i, --ignore`.
+
+**Orden de prioridad** (de mayor a menor):
+
+1. Patrones personalizados (`ignore.customPatterns`)
+2. `.repomixignore`
+3. `.gitignore` y `.git/info/exclude` (si `ignore.useGitignore` es verdadero y `--no-gitignore` no se usa)
+4. Patrones predeterminados (si `ignore.useDefaultPatterns` es verdadero y `--no-default-patterns` no se usa)
+
+Este enfoque permite una configuración flexible de exclusión de archivos basada en las necesidades de su proyecto. Ayuda a optimizar el tamaño del archivo empaquetado generado asegurando la exclusión de archivos sensibles a la seguridad y archivos binarios grandes, mientras previene la fuga de información confidencial.
+
+**Nota:** Los archivos binarios no se incluyen en la salida empaquetada por defecto, pero sus rutas se listan en la sección "Estructura del Repositorio" del archivo de salida. Esto proporciona una visión completa de la estructura del repositorio mientras mantiene el archivo empaquetado eficiente y basado en texto. Consulte [Manejo de archivos binarios](#manejo-de-archivos-binarios) para más detalles.
 
 Ejemplo de `.repomixignore`:
 ```text
@@ -167,6 +271,36 @@ dist/**
 ```
 
 Para la lista completa, vea [defaultIgnore.ts](https://github.com/yamadashy/repomix/blob/main/src/config/defaultIgnore.ts)
+
+## Manejo de archivos binarios
+
+Los archivos binarios (como imágenes, PDFs, binarios compilados, archivos, etc.) se manejan de manera especial para mantener una salida eficiente basada en texto:
+
+- **Contenidos de archivo**: Los archivos binarios **no se incluyen** en la salida empaquetada para mantener el archivo basado en texto y eficiente para el procesamiento de IA
+- **Estructura de directorios**: Las rutas de archivos binarios **se listan** en la sección de estructura de directorios, proporcionando una visión completa de su repositorio
+
+Este enfoque garantiza que obtenga una vista completa de la estructura de su repositorio mientras mantiene una salida eficiente basada en texto optimizada para el consumo de IA.
+
+**Ejemplo:**
+
+Si su repositorio contiene `logo.png` y `app.jar`:
+- Aparecerán en la sección Estructura de Directorios
+- Sus contenidos no se incluirán en la sección Archivos
+
+**Salida de Estructura de Directorios:**
+```
+src/
+  index.ts
+  utils.ts
+assets/
+  logo.png
+build/
+  app.jar
+```
+
+De esta manera, las herramientas de IA pueden entender que estos archivos binarios existen en la estructura de su proyecto sin procesar sus contenidos binarios.
+
+**Nota:** Puede controlar el umbral de tamaño máximo de archivo usando la opción de configuración `input.maxFileSize` (predeterminado: 50MB). Los archivos más grandes que este límite se omitirán por completo.
 
 ## Características avanzadas
 

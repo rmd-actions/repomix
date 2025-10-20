@@ -79,6 +79,18 @@ export const reportSummary = (packResult: PackResult, config: RepomixConfigMerge
     }
     logger.log(`${pc.white('    Git Diffs:')} ${gitDiffsMessage}`);
   }
+
+  if (config.output.git?.includeLogs) {
+    let gitLogsMessage = '';
+    if (packResult.gitLogTokenCount) {
+      gitLogsMessage = pc.white(
+        `✔ Git logs included ${pc.dim(`(${packResult.gitLogTokenCount.toLocaleString()} tokens)`)}`,
+      );
+    } else {
+      gitLogsMessage = pc.dim('✖ No git logs included');
+    }
+    logger.log(`${pc.white('     Git Logs:')} ${gitLogsMessage}`);
+  }
 };
 
 export const reportSecurityCheck = (
@@ -161,7 +173,7 @@ export const reportTopFiles = (
   });
 };
 
-export const reportSkippedFiles = (rootDir: string, skippedFiles: SkippedFileInfo[]) => {
+export const reportSkippedFiles = (_rootDir: string, skippedFiles: SkippedFileInfo[]) => {
   const binaryContentFiles = skippedFiles.filter((file) => file.reason === 'binary-content');
 
   if (binaryContentFiles.length === 0) {

@@ -1,7 +1,7 @@
 import type { RepomixConfigMerged } from '../config/configSchema.js';
 import { logMemoryUsage, withMemoryLogging } from '../shared/memoryUtils.js';
 import type { RepomixProgressCallback } from '../shared/types.js';
-import { type SkippedFileInfo, collectFiles } from './file/fileCollect.js';
+import { collectFiles, type SkippedFileInfo } from './file/fileCollect.js';
 import { sortPaths } from './file/filePathSort.js';
 import { processFiles } from './file/fileProcess.js';
 import { searchFiles } from './file/fileSearch.js';
@@ -118,7 +118,7 @@ export const pack = async (
 
   progressCallback('Generating output...');
   const output = await withMemoryLogging('Generate Output', () =>
-    deps.generateOutput(rootDirs, config, processedFiles, safeFilePaths, gitDiffResult, gitLogResult),
+    deps.generateOutput(rootDirs, config, processedFiles, allFilePaths, gitDiffResult, gitLogResult),
   );
 
   progressCallback('Writing output file...');

@@ -2,7 +2,7 @@ import type { RepomixConfigMerged } from '../../config/configSchema.js';
 import { logger } from '../../shared/logger.js';
 import type { SupportedLang } from './lang2Query.js';
 import { LanguageParser } from './languageParser.js';
-import { type ParseContext, createParseStrategy } from './parseStrategies/ParseStrategy.js';
+import { createParseStrategy, type ParseContext } from './parseStrategies/ParseStrategy.js';
 
 interface CapturedChunk {
   content: string;
@@ -38,6 +38,10 @@ export const parseFile = async (fileContent: string, filePath: string, config: R
   try {
     // Parse the file content into an Abstract Syntax Tree (AST)
     const tree = parser.parse(fileContent);
+    if (!tree) {
+      logger.debug(`Failed to parse file: ${filePath}`);
+      return undefined;
+    }
 
     // Get the appropriate parse strategy for the language
     const parseStrategy = createParseStrategy(lang);

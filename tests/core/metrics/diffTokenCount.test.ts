@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { RepomixConfigMerged } from '../../../src/config/configSchema.js';
 import type { ProcessedFile } from '../../../src/core/file/fileTypes.js';
-import { TokenCounter } from '../../../src/core/metrics/TokenCounter.js';
 import { calculateMetrics } from '../../../src/core/metrics/calculateMetrics.js';
+import { TokenCounter } from '../../../src/core/metrics/TokenCounter.js';
 import { createMockConfig } from '../../testing/testUtils.js';
 
 // Mock the TokenCounter
@@ -88,6 +88,10 @@ index 123..456 100644
     });
 
     // Mock dependency functions
+    const mockTaskRunner = {
+      run: vi.fn(),
+      cleanup: vi.fn(),
+    };
 
     const mockCalculateOutputMetrics = vi.fn().mockResolvedValue(15);
 
@@ -106,6 +110,7 @@ index 123..456 100644
         calculateOutputMetrics: mockCalculateOutputMetrics,
         calculateGitDiffMetrics: vi.fn().mockResolvedValue(25),
         calculateGitLogMetrics: vi.fn().mockResolvedValue({ gitLogTokenCount: 0 }),
+        taskRunner: mockTaskRunner,
       },
     );
 
@@ -166,6 +171,10 @@ index 123..456 100644
     });
 
     // Mock dependency functions
+    const mockTaskRunner = {
+      run: vi.fn(),
+      cleanup: vi.fn(),
+    };
 
     const mockCalculateOutputMetrics = vi.fn().mockResolvedValue(15);
 
@@ -181,6 +190,7 @@ index 123..456 100644
         calculateOutputMetrics: mockCalculateOutputMetrics,
         calculateGitDiffMetrics: vi.fn().mockResolvedValue(0),
         calculateGitLogMetrics: vi.fn().mockResolvedValue({ gitLogTokenCount: 0 }),
+        taskRunner: mockTaskRunner,
       },
     );
 
@@ -239,6 +249,10 @@ index 123..456 100644
     });
 
     // Mock dependency functions
+    const mockTaskRunner = {
+      run: vi.fn(),
+      cleanup: vi.fn(),
+    };
 
     const mockCalculateOutputMetrics = vi.fn().mockResolvedValue(15);
 
@@ -254,6 +268,7 @@ index 123..456 100644
         calculateOutputMetrics: mockCalculateOutputMetrics,
         calculateGitDiffMetrics: vi.fn().mockResolvedValue(0),
         calculateGitLogMetrics: vi.fn().mockResolvedValue({ gitLogTokenCount: 0 }),
+        taskRunner: mockTaskRunner,
       },
     );
 

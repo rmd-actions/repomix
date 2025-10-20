@@ -898,6 +898,8 @@ To configure Repomix as an MCP server in [Claude Code](https://docs.anthropic.co
 claude mcp add repomix -- npx -y repomix --mcp
 ```
 
+Alternatively, you can use the official Repomix plugins (see [Claude Code Plugins](#claude-code-plugins) section below).
+
 **Using Docker instead of npx:**
 
 You can use Docker as an alternative to npx for running Repomix as an MCP server:
@@ -993,13 +995,156 @@ When running as an MCP server, Repomix provides the following tools:
     - Validates paths and ensures they are absolute
     - Useful for exploring project structure and understanding codebase organization
 
+### Claude Code Plugins
+
+Repomix provides official plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) that integrate seamlessly with the AI-powered development environment.
+
+#### Available Plugins
+
+**1. repomix-mcp** (MCP Server Plugin)
+
+Foundation plugin that provides AI-powered codebase analysis through MCP server integration.
+
+**Features:**
+- Pack local and remote repositories
+- Search through packed outputs
+- Read files with built-in security scanning (Secretlint)
+- Automatic Tree-sitter compression (~70% token reduction)
+
+**2. repomix-commands** (Slash Commands Plugin)
+
+Provides convenient slash commands for quick operations with natural language support.
+
+**Available Commands:**
+- `/repomix-commands:pack-local` - Pack local codebase with various options
+- `/repomix-commands:pack-remote` - Pack and analyze remote GitHub repositories
+
+**Example usage:**
+```text
+/repomix-commands:pack-local
+Pack this project as markdown with compression
+
+/repomix-commands:pack-remote yamadashy/repomix
+Pack only TypeScript files from the yamadashy/repomix repository
+```
+
+#### Installation
+
+**1. Add the Repomix plugin marketplace:**
+
+```text
+/plugin marketplace add yamadashy/repomix
+```
+
+**2. Install plugins:**
+
+```text
+# Install MCP server plugin (recommended foundation)
+/plugin install repomix-mcp@repomix
+
+# Install commands plugin (extends functionality)
+/plugin install repomix-commands@repomix
+```
+
+**Note**: The `repomix-mcp` plugin is recommended as a foundation, and `repomix-commands` extends it with convenient slash commands. While you can install them independently, using both provides the most comprehensive experience.
+
+**Alternatively, use the interactive plugin installer:**
+
+```bash
+/plugin
+```
+
+This will open an interactive interface where you can browse and install available plugins.
+
+#### Benefits
+
+- **Seamless Integration**: Claude can directly analyze codebases without manual preparation
+- **Natural Language**: Use conversational commands instead of remembering CLI syntax
+- **Always Latest**: Automatically uses `npx repomix@latest` for up-to-date features
+- **Security Built-in**: Automatic Secretlint scanning prevents sensitive data exposure
+- **Token Optimization**: Tree-sitter compression for large codebases
+
+For more details, see the plugin documentation in the `.claude/plugins/` directory.
+
 ## ⚙️ Configuration
 
-Create a `repomix.config.json` file in your project root for custom configurations.
+Repomix supports multiple configuration file formats for flexibility and ease of use.
+
+### Configuration File Formats
+
+Repomix will automatically search for configuration files in the following priority order:
+
+1. **TypeScript** (`repomix.config.ts`, `repomix.config.mts`, `repomix.config.cts`)
+2. **JavaScript/ES Module** (`repomix.config.js`, `repomix.config.mjs`, `repomix.config.cjs`)
+3. **JSON** (`repomix.config.json5`, `repomix.config.jsonc`, `repomix.config.json`)
+
+#### JSON Configuration
+
+Create a `repomix.config.json` file in your project root:
 
 ```bash
 repomix --init
 ```
+
+This will create a `repomix.config.json` file with default settings.
+
+#### TypeScript Configuration
+
+TypeScript configuration files provide the best developer experience with full type checking and IDE support.
+
+**Installation:**
+
+To use TypeScript or JavaScript configuration with `defineConfig`, you need to install Repomix as a dev dependency:
+
+```bash
+npm install -D repomix
+```
+
+**Example:**
+
+```typescript
+// repomix.config.ts
+import { defineConfig } from 'repomix';
+
+export default defineConfig({
+  output: {
+    filePath: 'output.xml',
+    style: 'xml',
+    removeComments: true,
+  },
+  ignore: {
+    customPatterns: ['**/node_modules/**', '**/dist/**'],
+  },
+});
+```
+
+**Benefits:**
+- ✅ Full TypeScript type checking in your IDE
+- ✅ Excellent IDE autocomplete and IntelliSense
+- ✅ Use dynamic values (timestamps, environment variables, etc.)
+
+**Dynamic Values Example:**
+
+```typescript
+// repomix.config.ts
+import { defineConfig } from 'repomix';
+
+// Generate timestamp-based filename
+const timestamp = new Date().toISOString().slice(0, 19).replace(/[:.]/g, '-');
+
+export default defineConfig({
+  output: {
+    filePath: `output-${timestamp}.xml`,
+    style: 'xml',
+  },
+});
+```
+
+#### JavaScript Configuration
+
+JavaScript configuration files work the same as TypeScript, supporting `defineConfig` and dynamic values.
+
+### Configuration Options
 
 Here's an explanation of the configuration options:
 
@@ -1041,10 +1186,29 @@ The configuration file supports [JSON5](https://json5.org/) syntax, which allows
 - Unquoted property names
 - More relaxed string syntax
 
+### Schema Validation
+
+You can enable schema validation for your configuration file by adding the `$schema` property:
+
+```json
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "filePath": "repomix-output.xml",
+    "style": "xml"
+  }
+}
+```
+
+This provides auto-completion and validation in editors that support JSON schema.
+
+### Example Configuration
+
 Example configuration:
 
 ```json5
 {
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
   "input": {
     "maxFileSize": 50000000
   },
