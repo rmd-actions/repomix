@@ -102,6 +102,7 @@ Os arquivos de configuração JavaScript funcionam da mesma forma que TypeScript
 | `output.copyToClipboard`         | Indica se deve copiar a saída para a área de transferência do sistema além de salvar o arquivo                           | `false`                |
 | `output.topFilesLength`          | Número de arquivos principais para exibir no resumo. Se definido como 0, nenhum resumo será exibido                      | `5`                    |
 | `output.includeEmptyDirectories` | Indica se deve incluir diretórios vazios na estrutura do repositório                                                     | `false`                |
+| `output.includeFullDirectoryStructure` | Ao usar padrões `include`, indica se deve exibir a árvore de diretórios completa (respeitando os padrões ignore) enquanto processa apenas os arquivos incluídos. Fornece contexto completo do repositório para análise de IA | `false`                |
 | `output.git.sortByChanges`       | Indica se deve ordenar arquivos por número de alterações git. Arquivos com mais alterações aparecem no final            | `true`                 |
 | `output.git.sortByChangesMaxCommits` | Número máximo de commits para analisar ao contar alterações git. Limita a profundidade do histórico por desempenho  | `100`                  |
 | `output.git.includeDiffs`        | Indica se deve incluir as diferenças git na saída. Mostra separadamente as alterações da árvore de trabalho e as alterações preparadas | `false`                |
@@ -109,6 +110,7 @@ Os arquivos de configuração JavaScript funcionam da mesma forma que TypeScript
 | `output.git.includeLogsCount`    | Número de commits do log do git para incluir na saída                                                                          | `50`                   |
 | `include`                        | Padrões de arquivos para incluir usando [padrões glob](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax) | `[]`                   |
 | `ignore.useGitignore`            | Indica se deve usar os padrões do arquivo `.gitignore` do projeto                                                        | `true`                 |
+| `ignore.useDotIgnore`            | Indica se deve usar os padrões do arquivo `.ignore` do projeto                                                           | `true`                 |
 | `ignore.useDefaultPatterns`      | Indica se deve usar os padrões de ignorar padrão (node_modules, .git, etc.)                                            | `true`                 |
 | `ignore.customPatterns`          | Padrões adicionais para ignorar usando [padrões glob](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax) | `[]`                   |
 | `security.enableSecurityCheck`   | Indica se deve realizar verificações de segurança usando Secretlint para detectar informações sensíveis                  | `true`                 |
@@ -231,6 +233,7 @@ Ou use a opção de linha de comando `--include` para filtragem única.
 O Repomix oferece múltiplos métodos para definir padrões de ignorar para excluir arquivos ou diretórios específicos durante o processo de empacotamento:
 
 - **.gitignore**: Por padrão, são utilizados os padrões listados nos arquivos `.gitignore` do seu projeto e `.git/info/exclude`. Este comportamento pode ser controlado com a configuração `ignore.useGitignore` ou a opção CLI `--no-gitignore`.
+- **.ignore**: Você pode usar um arquivo `.ignore` na raiz do seu projeto, seguindo o mesmo formato que `.gitignore`. Este arquivo é respeitado por ferramentas como ripgrep e the silver searcher, reduzindo a necessidade de manter múltiplos arquivos de ignorar. Este comportamento pode ser controlado com a configuração `ignore.useDotIgnore` ou a opção CLI `--no-dot-ignore`.
 - **Padrões padrão**: O Repomix inclui uma lista padrão de arquivos e diretórios comumente excluídos (por exemplo, node_modules, .git, arquivos binários). Esta funcionalidade pode ser controlada com a configuração `ignore.useDefaultPatterns` ou a opção CLI `--no-default-patterns`. Por favor, consulte [defaultIgnore.ts](https://github.com/yamadashy/repomix/blob/main/src/config/defaultIgnore.ts) para mais detalhes.
 - **.repomixignore**: Você pode criar um arquivo `.repomixignore` na raiz do seu projeto para definir padrões de ignorar específicos do Repomix. Este arquivo segue o mesmo formato que `.gitignore`.
 - **Padrões personalizados**: Padrões de ignorar adicionais podem ser especificados usando a opção `ignore.customPatterns` no arquivo de configuração. Você pode sobrescrever esta configuração com a opção de linha de comando `-i, --ignore`.
@@ -238,9 +241,10 @@ O Repomix oferece múltiplos métodos para definir padrões de ignorar para excl
 **Ordem de prioridade** (da mais alta para a mais baixa):
 
 1. Padrões personalizados (`ignore.customPatterns`)
-2. `.repomixignore`
-3. `.gitignore` e `.git/info/exclude` (se `ignore.useGitignore` for verdadeiro e `--no-gitignore` não for usado)
-4. Padrões padrão (se `ignore.useDefaultPatterns` for verdadeiro e `--no-default-patterns` não for usado)
+2. Arquivos de ignorar (`.repomixignore`, `.ignore`, `.gitignore` e `.git/info/exclude`):
+   - Quando em diretórios aninhados, arquivos em diretórios mais profundos têm prioridade mais alta
+   - Quando no mesmo diretório, esses arquivos são mesclados sem uma ordem particular
+3. Padrões padrão (se `ignore.useDefaultPatterns` for verdadeiro e `--no-default-patterns` não for usado)
 
 Esta abordagem permite uma configuração flexível de exclusão de arquivos com base nas necessidades do seu projeto. Ajuda a otimizar o tamanho do arquivo empacotado gerado, garantindo a exclusão de arquivos sensíveis à segurança e arquivos binários grandes, enquanto previne o vazamento de informações confidenciais.
 

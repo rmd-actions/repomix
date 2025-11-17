@@ -4,7 +4,7 @@ import path from 'node:path';
 import process from 'node:process';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { loadFileConfig, mergeConfigs } from '../../src/config/configLoad.js';
-import type { RepomixConfigCli, RepomixConfigFile } from '../../src/config/configSchema.js';
+import { defaultConfig, type RepomixConfigCli, type RepomixConfigFile } from '../../src/config/configSchema.js';
 import { getGlobalDirectory } from '../../src/config/globalDirectory.js';
 import { RepomixConfigValidationError } from '../../src/shared/errorHandle.js';
 import { logger } from '../../src/shared/logger.js';
@@ -206,6 +206,32 @@ describe('configLoad', () => {
         `Config file not found at ${nonExistentConfigPath}`,
       );
     });
+
+    test('should throw RepomixError for unsupported config file format', async () => {
+      vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as Stats);
+
+      await expect(loadFileConfig(process.cwd(), 'test-config.yaml')).rejects.toThrow('Unsupported config file format');
+    });
+
+    test('should throw RepomixError for config file with unsupported extension', async () => {
+      vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as Stats);
+
+      await expect(loadFileConfig(process.cwd(), 'test-config.toml')).rejects.toThrow('Unsupported config file format');
+    });
+
+    test('should handle general errors when loading config', async () => {
+      vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as Stats);
+      vi.mocked(fs.readFile).mockRejectedValue(new Error('Permission denied'));
+
+      await expect(loadFileConfig(process.cwd(), 'test-config.json')).rejects.toThrow('Error loading config');
+    });
+
+    test('should handle non-Error objects when loading config', async () => {
+      vi.mocked(fs.stat).mockResolvedValue({ isFile: () => true } as Stats);
+      vi.mocked(fs.readFile).mockRejectedValue('String error');
+
+      await expect(loadFileConfig(process.cwd(), 'test-config.json')).rejects.toThrow('Error loading config');
+    });
   });
 
   describe('mergeConfigs', () => {
@@ -237,6 +263,71 @@ describe('configLoad', () => {
       };
 
       expect(() => mergeConfigs(process.cwd(), fileConfig, cliConfig)).toThrow(RepomixConfigValidationError);
+    });
+
+    test('should merge nested git config correctly', () => {
+      const fileConfig: RepomixConfigFile = {
+        output: { git: { sortByChanges: false } },
+      };
+      const cliConfig: RepomixConfigCli = {
+        output: { git: { includeDiffs: true } },
+      };
+      const merged = mergeConfigs(process.cwd(), fileConfig, cliConfig);
+
+      // Both configs should be applied
+      expect(merged.output.git.sortByChanges).toBe(false);
+      expect(merged.output.git.includeDiffs).toBe(true);
+      // Defaults should still be present
+      expect(merged.output.git.sortByChangesMaxCommits).toBe(100);
+    });
+
+    test('should not mutate defaultConfig', () => {
+      const originalFilePath = defaultConfig.output.filePath;
+      const fileConfig: RepomixConfigFile = {
+        output: { style: 'markdown' },
+      };
+
+      mergeConfigs(process.cwd(), fileConfig, {});
+
+      // defaultConfig should remain unchanged
+      expect(defaultConfig.output.filePath).toBe(originalFilePath);
+    });
+
+    test('should merge tokenCount config correctly', () => {
+      const fileConfig: RepomixConfigFile = {
+        tokenCount: { encoding: 'cl100k_base' },
+      };
+      const merged = mergeConfigs(process.cwd(), fileConfig, {});
+
+      expect(merged.tokenCount.encoding).toBe('cl100k_base');
+    });
+
+    test('should map default filename to style when only style is provided via CLI', () => {
+      const merged = mergeConfigs(process.cwd(), {}, { output: { style: 'markdown' } });
+      expect(merged.output.filePath).toBe('repomix-output.md');
+      expect(merged.output.style).toBe('markdown');
+    });
+
+    test('should keep explicit CLI output filePath even when style is provided', () => {
+      const merged = mergeConfigs(process.cwd(), {}, { output: { style: 'markdown', filePath: 'custom-output.any' } });
+      expect(merged.output.filePath).toBe('custom-output.any');
+      expect(merged.output.style).toBe('markdown');
+    });
+
+    test('should keep explicit file config filePath even when style is provided via CLI', () => {
+      const merged = mergeConfigs(
+        process.cwd(),
+        { output: { filePath: 'from-file.txt' } },
+        { output: { style: 'markdown' } },
+      );
+      expect(merged.output.filePath).toBe('from-file.txt');
+      expect(merged.output.style).toBe('markdown');
+    });
+
+    test('should map default filename when style provided in file config and no filePath anywhere', () => {
+      const merged = mergeConfigs(process.cwd(), { output: { style: 'plain' } }, {});
+      expect(merged.output.filePath).toBe('repomix-output.txt');
+      expect(merged.output.style).toBe('plain');
     });
   });
 });

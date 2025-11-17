@@ -102,6 +102,7 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
 | `output.copyToClipboard`         | ファイルの保存に加えて、出力をシステムクリップボードにコピーするかどうか                                                   | `false`                |
 | `output.topFilesLength`          | 要約に表示するトップファイルの数。0に設定すると、要約は表示されません                                                       | `5`                    |
 | `output.includeEmptyDirectories` | リポジトリ構造に空のディレクトリを含めるかどうか                                                                           | `false`                |
+| `output.includeFullDirectoryStructure` | `include`パターンを使用する際、includeされたファイルのみを処理しながら、完全なディレクトリツリー（ignoreパターンに従う）を表示するかどうか。AI分析のための完全なリポジトリコンテキストを提供します | `false`                |
 | `output.git.sortByChanges`       | Gitの変更回数でファイルをソートするかどうか。変更が多いファイルが下部に表示されます                                       | `true`                 |
 | `output.git.sortByChangesMaxCommits` | Gitの変更を分析する最大コミット数。パフォーマンスのために履歴の深さを制限します                                       | `100`                  |
 | `output.git.includeDiffs`        | 出力にGitの差分を含めるかどうか。作業ツリーとステージング済みの変更を別々に表示します                                     | `false`                |
@@ -109,6 +110,7 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
 | `output.git.includeLogsCount`    | 含めるGitログのコミット数。開発パターンを理解するための履歴の深さを制限します                                           | `50`                   |
 | `include`                        | 含めるファイルのパターン（[globパターン](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax)を使用）    | `[]`                   |
 | `ignore.useGitignore`            | プロジェクトの`.gitignore`ファイルのパターンを使用するかどうか                                                             | `true`                 |
+| `ignore.useDotIgnore`            | プロジェクトの`.ignore`ファイルのパターンを使用するかどうか                                                                | `true`                 |
 | `ignore.useDefaultPatterns`      | デフォルトの除外パターン（node_modules、.gitなど）を使用するかどうか                                                       | `true`                 |
 | `ignore.customPatterns`          | 追加の除外パターン（[globパターン](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax)を使用）          | `[]`                   |
 | `security.enableSecurityCheck`   | Secretlintを使用して機密情報を検出するセキュリティチェックを実行するかどうか                                               | `true`                 |
@@ -231,6 +233,7 @@ Repomixは[globパターン](https://github.com/mrmlnc/fast-glob?tab=readme-ov-f
 Repomixは、パッキングプロセス中に特定のファイルやディレクトリを除外するための複数の方法を提供します：
 
 - **.gitignore**: デフォルトでは、プロジェクトの`.gitignore`ファイルと`.git/info/exclude`にリストされているパターンが使用されます。この動作は`ignore.useGitignore`設定または`--no-gitignore` CLIオプションで制御できます。
+- **.ignore**: プロジェクトルートに`.ignore`ファイルを使用できます。`.gitignore`と同じ形式に従います。このファイルはripgrepやthe silver searcherなどのツールでも尊重されるため、複数の除外ファイルを維持する必要が減ります。この動作は`ignore.useDotIgnore`設定または`--no-dot-ignore` CLIオプションで制御できます。
 - **デフォルトパターン**: Repomixには、一般的に除外されるファイルとディレクトリのデフォルトリスト（例：node_modules、.git、バイナリファイル）が含まれています。この機能は`ignore.useDefaultPatterns`設定または`--no-default-patterns` CLIオプションで制御できます。詳細は[defaultIgnore.ts](https://github.com/yamadashy/repomix/blob/main/src/config/defaultIgnore.ts)を参照してください。
 - **.repomixignore**: プロジェクトルートに`.repomixignore`ファイルを作成して、Repomix固有の除外パターンを定義できます。このファイルは`.gitignore`と同じ形式に従います。
 - **カスタムパターン**: 設定ファイルの`ignore.customPatterns`オプションを使用して、追加の除外パターンを指定できます。この設定は`-i, --ignore`コマンドラインオプションで上書きできます。
@@ -238,9 +241,10 @@ Repomixは、パッキングプロセス中に特定のファイルやディレ�
 **優先順位**（高い順）：
 
 1. カスタムパターン（`ignore.customPatterns`）
-2. `.repomixignore`
-3. `.gitignore`および`.git/info/exclude`（`ignore.useGitignore`がtrueで`--no-gitignore`が使用されていない場合）
-4. デフォルトパターン（`ignore.useDefaultPatterns`がtrueで`--no-default-patterns`が使用されていない場合）
+2. 除外ファイル（`.repomixignore`、`.ignore`、`.gitignore`、`.git/info/exclude`）：
+   - ネストされたディレクトリにある場合、より深いディレクトリのファイルが優先されます
+   - 同じディレクトリにある場合、これらのファイルは順不同でマージされます
+3. デフォルトパターン（`ignore.useDefaultPatterns`がtrueで`--no-default-patterns`が使用されていない場合）
 
 このアプローチにより、プロジェクトのニーズに基づいて柔軟なファイル除外設定が可能になります。セキュリティ上機密性の高いファイルや大きなバイナリファイルの除外を確実にし、機密情報の漏洩を防ぎながら、生成されるパックファイルのサイズを最適化するのに役立ちます。
 

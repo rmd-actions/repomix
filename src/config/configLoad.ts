@@ -57,7 +57,22 @@ const findConfigFile = async (configPaths: string[], logPrefix: string): Promise
   return null;
 };
 
-export const loadFileConfig = async (rootDir: string, argConfigPath: string | null): Promise<RepomixConfigFile> => {
+// Default jiti import implementation for loading JS/TS config files
+const defaultJitiImport = async (fileUrl: string): Promise<unknown> => {
+  const jiti = createJiti(import.meta.url, {
+    moduleCache: false, // Disable cache to ensure fresh config loads
+    interopDefault: true, // Automatically use default export
+  });
+  return await jiti.import(fileUrl);
+};
+
+export const loadFileConfig = async (
+  rootDir: string,
+  argConfigPath: string | null,
+  deps = {
+    jitiImport: defaultJitiImport,
+  },
+): Promise<RepomixConfigFile> => {
   if (argConfigPath) {
     // If a specific config path is provided, use it directly
     const fullPath = path.resolve(rootDir, argConfigPath);
@@ -66,7 +81,7 @@ export const loadFileConfig = async (rootDir: string, argConfigPath: string | nu
     const isLocalFileExists = await checkFileExists(fullPath);
 
     if (isLocalFileExists) {
-      return await loadAndValidateConfig(fullPath);
+      return await loadAndValidateConfig(fullPath, deps);
     }
     throw new RepomixError(`Config file not found at ${argConfigPath}`);
   }
@@ -76,7 +91,7 @@ export const loadFileConfig = async (rootDir: string, argConfigPath: string | nu
   const localConfigPath = await findConfigFile(localConfigPaths, 'local');
 
   if (localConfigPath) {
-    return await loadAndValidateConfig(localConfigPath);
+    return await loadAndValidateConfig(localConfigPath, deps);
   }
 
   // Try to find a global config file using the priority order
@@ -84,7 +99,7 @@ export const loadFileConfig = async (rootDir: string, argConfigPath: string | nu
   const globalConfigPath = await findConfigFile(globalConfigPaths, 'global');
 
   if (globalConfigPath) {
-    return await loadAndValidateConfig(globalConfigPath);
+    return await loadAndValidateConfig(globalConfigPath, deps);
   }
 
   logger.log(
@@ -100,7 +115,15 @@ const getFileExtension = (filePath: string): string => {
   return match ? match[1] : '';
 };
 
-const loadAndValidateConfig = async (filePath: string): Promise<RepomixConfigFile> => {
+// Dependency injection allows mocking jiti in tests to prevent double instrumentation.
+// Without this, jiti transforms src/ files that are already instrumented by Vitest,
+// causing coverage instability (results varied by ~2% on each test run).
+const loadAndValidateConfig = async (
+  filePath: string,
+  deps = {
+    jitiImport: defaultJitiImport,
+  },
+): Promise<RepomixConfigFile> => {
   try {
     let config: unknown;
     const ext = getFileExtension(filePath);
@@ -114,11 +137,7 @@ const loadAndValidateConfig = async (filePath: string): Promise<RepomixConfigFil
       case 'cjs': {
         // Use jiti for TypeScript and JavaScript files
         // This provides consistent behavior and avoids Node.js module cache issues
-        const jiti = createJiti(import.meta.url, {
-          moduleCache: false, // Disable cache to ensure fresh config loads
-          interopDefault: true, // Automatically use default export
-        });
-        config = await jiti.import(pathToFileURL(filePath).href);
+        config = await deps.jitiImport(pathToFileURL(filePath).href);
         break;
       }
 
@@ -157,14 +176,6 @@ export const mergeConfigs = (
 
   const baseConfig = defaultConfig;
 
-  // If the output file path is not provided in the config file or CLI, use the default file path for the style
-  if (cliConfig.output?.filePath == null && fileConfig.output?.filePath == null) {
-    const style = cliConfig.output?.style || fileConfig.output?.style || baseConfig.output.style;
-    baseConfig.output.filePath = defaultFilePathMap[style];
-
-    logger.trace('Default output file path is set to:', baseConfig.output.filePath);
-  }
-
   const mergedConfig = {
     cwd,
     input: {
@@ -172,11 +183,32 @@ export const mergeConfigs = (
       ...fileConfig.input,
       ...cliConfig.input,
     },
-    output: {
-      ...baseConfig.output,
-      ...fileConfig.output,
-      ...cliConfig.output,
-    },
+    output: (() => {
+      const mergedOutput = {
+        ...baseConfig.output,
+        ...fileConfig.output,
+        ...cliConfig.output,
+        git: {
+          ...baseConfig.output.git,
+          ...fileConfig.output?.git,
+          ...cliConfig.output?.git,
+        },
+      };
+
+      // Auto-adjust filePath extension to match style when filePath is not explicitly set
+      const style = mergedOutput.style ?? baseConfig.output.style;
+      const filePathExplicitlySet = Boolean(fileConfig.output?.filePath || cliConfig.output?.filePath);
+
+      if (!filePathExplicitlySet) {
+        const desiredPath = defaultFilePathMap[style];
+        if (mergedOutput.filePath !== desiredPath) {
+          mergedOutput.filePath = desiredPath;
+          logger.trace('Adjusted output file path to match style:', mergedOutput.filePath);
+        }
+      }
+
+      return mergedOutput;
+    })(),
     include: [...(baseConfig.include || []), ...(fileConfig.include || []), ...(cliConfig.include || [])],
     ignore: {
       ...baseConfig.ignore,
@@ -192,6 +224,11 @@ export const mergeConfigs = (
       ...baseConfig.security,
       ...fileConfig.security,
       ...cliConfig.security,
+    },
+    tokenCount: {
+      ...baseConfig.tokenCount,
+      ...fileConfig.tokenCount,
+      ...cliConfig.tokenCount,
     },
   };
 

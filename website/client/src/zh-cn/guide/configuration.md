@@ -102,6 +102,7 @@ JavaScript配置文件的工作方式与TypeScript相同，支持`defineConfig`�
 | `output.copyToClipboard`         | 是否除了保存文件外还将输出复制到系统剪贴板                                                                                 | `false`                |
 | `output.topFilesLength`          | 在摘要中显示的顶部文件数量。如果设置为0，则不显示摘要                                                                      | `5`                    |
 | `output.includeEmptyDirectories` | 是否在仓库结构中包含空目录                                                                                                 | `false`                |
+| `output.includeFullDirectoryStructure` | 使用`include`模式时，是否显示完整的目录树（遵守ignore模式）同时仅处理包含的文件。为AI分析提供完整的仓库上下文 | `false`                |
 | `output.git.sortByChanges`       | 是否按Git更改次数对文件进行排序。更改较多的文件显示在底部                                                                 | `true`                 |
 | `output.git.sortByChangesMaxCommits` | 分析Git更改时要分析的最大提交数。限制历史深度以提高性能                                                               | `100`                  |
 | `output.git.includeDiffs`        | 是否在输出中包含Git差异。分别显示工作树和暂存区的更改                                                                     | `false`                |
@@ -109,6 +110,7 @@ JavaScript配置文件的工作方式与TypeScript相同，支持`defineConfig`�
 | `output.git.includeLogsCount`    | 要包含的Git日志提交数量。限制历史深度以了解开发模式                                                                      | `50`                   |
 | `include`                        | 要包含的文件模式（使用[glob模式](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax)）                 | `[]`                   |
 | `ignore.useGitignore`            | 是否使用项目的`.gitignore`文件中的模式                                                                                     | `true`                 |
+| `ignore.useDotIgnore`            | 是否使用项目的`.ignore`文件中的模式                                                                                        | `true`                 |
 | `ignore.useDefaultPatterns`      | 是否使用默认忽略模式（node_modules、.git等）                                                                              | `true`                 |
 | `ignore.customPatterns`          | 额外的忽略模式（使用[glob模式](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax)）                   | `[]`                   |
 | `security.enableSecurityCheck`   | 是否使用Secretlint执行安全检查以检测敏感信息                                                                              | `true`                 |
@@ -231,6 +233,7 @@ Repomix支持使用[glob模式](https://github.com/mrmlnc/fast-glob?tab=readme-o
 Repomix提供多种方法来设置忽略模式，以在打包过程中排除特定文件或目录：
 
 - **.gitignore**：默认情况下，使用项目的`.gitignore`文件和`.git/info/exclude`中列出的模式。此行为可以通过`ignore.useGitignore`设置或`--no-gitignore` CLI选项控制。
+- **.ignore**：您可以在项目根目录中使用`.ignore`文件，遵循与`.gitignore`相同的格式。ripgrep和the silver searcher等工具也会遵守此文件，减少了维护多个忽略文件的需要。此行为可以通过`ignore.useDotIgnore`设置或`--no-dot-ignore` CLI选项控制。
 - **默认模式**：Repomix包含常见排除文件和目录的默认列表（例如node_modules、.git、二进制文件）。此功能可以通过`ignore.useDefaultPatterns`设置或`--no-default-patterns` CLI选项控制。有关详细信息，请参阅[defaultIgnore.ts](https://github.com/yamadashy/repomix/blob/main/src/config/defaultIgnore.ts)。
 - **.repomixignore**：您可以在项目根目录中创建`.repomixignore`文件来定义Repomix特定的忽略模式。此文件遵循与`.gitignore`相同的格式。
 - **自定义模式**：可以使用配置文件中的`ignore.customPatterns`选项指定其他忽略模式。您可以使用`-i, --ignore`命令行选项覆盖此设置。
@@ -238,9 +241,10 @@ Repomix提供多种方法来设置忽略模式，以在打包过程中排除特�
 **优先顺序**（从高到低）：
 
 1. 自定义模式（`ignore.customPatterns`）
-2. `.repomixignore`
-3. `.gitignore`和`.git/info/exclude`（如果`ignore.useGitignore`为true且未使用`--no-gitignore`）
-4. 默认模式（如果`ignore.useDefaultPatterns`为true且未使用`--no-default-patterns`）
+2. 忽略文件（`.repomixignore`、`.ignore`、`.gitignore`和`.git/info/exclude`）：
+   - 在嵌套目录中时，更深层目录中的文件具有更高优先级
+   - 在同一目录中时，这些文件以不特定的顺序合并
+3. 默认模式（如果`ignore.useDefaultPatterns`为true且未使用`--no-default-patterns`）
 
 这种方法允许根据项目需求灵活配置文件排除。它通过确保排除安全敏感文件和大型二进制文件来帮助优化生成的打包文件的大小，同时防止机密信息泄漏。
 
