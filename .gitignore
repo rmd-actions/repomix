@@ -4,6 +4,7 @@ node_modules/
 # Build output
 lib/
 website/client/.vitepress/dist/
+website/server/dist/
 
 # Logs
 *.log
@@ -42,6 +43,9 @@ repomix-output.json
 
 # repomix runner
 .repomix/
+
+# repomix references
+.claude/skills/repomix-reference-*/
 
 # Agent
 /.mcp.json
