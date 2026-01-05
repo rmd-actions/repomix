@@ -1001,6 +1001,37 @@ When running as an MCP server, Repomix provides the following tools:
 
 Repomix provides official plugins for [Claude Code](https://docs.anthropic.com/en/docs/claude-code/overview) that integrate seamlessly with the AI-powered development environment.
 
+#### Installation
+
+**1. Add the Repomix plugin marketplace:**
+
+```text
+/plugin marketplace add yamadashy/repomix
+```
+
+**2. Install plugins:**
+
+```text
+# Install MCP server plugin (recommended foundation)
+/plugin install repomix-mcp@repomix
+
+# Install commands plugin (extends functionality)
+/plugin install repomix-commands@repomix
+
+# Install repository explorer plugin (AI-powered analysis)
+/plugin install repomix-explorer@repomix
+```
+
+**Note**: The `repomix-mcp` plugin is recommended as a foundation. The `repomix-commands` plugin provides convenient slash commands, while `repomix-explorer` adds AI-powered analysis capabilities. While you can install them independently, using all three provides the most comprehensive experience.
+
+**Alternatively, use the interactive plugin installer:**
+
+```text
+/plugin
+```
+
+This will open an interactive interface where you can browse and install available plugins.
+
 #### Available Plugins
 
 **1. repomix-mcp** (MCP Server Plugin)
@@ -1030,7 +1061,7 @@ Pack this project as markdown with compression
 Pack only TypeScript files from the yamadashy/repomix repository
 ```
 
-**3. repomix-explorer:explorer** (AI Analysis Agent Plugin)
+**3. repomix-explorer** (AI Analysis Agent Plugin)
 
 AI-powered repository analysis agent that intelligently explores codebases using Repomix CLI.
 
@@ -1057,37 +1088,6 @@ The agent automatically:
 1. Runs `npx repomix@latest` to pack the repository
 2. Uses Grep and Read tools to efficiently search the output
 3. Provides comprehensive analysis without consuming excessive context
-
-#### Installation
-
-**1. Add the Repomix plugin marketplace:**
-
-```text
-/plugin marketplace add yamadashy/repomix
-```
-
-**2. Install plugins:**
-
-```text
-# Install MCP server plugin (recommended foundation)
-/plugin install repomix-mcp@repomix
-
-# Install commands plugin (extends functionality)
-/plugin install repomix-commands@repomix
-
-# Install repository explorer plugin (AI-powered analysis)
-/plugin install repomix-explorer@repomix
-```
-
-**Note**: The `repomix-mcp` plugin is recommended as a foundation. The `repomix-commands` plugin provides convenient slash commands, while `repomix-explorer` adds AI-powered analysis capabilities. While you can install them independently, using all three provides the most comprehensive experience.
-
-**Alternatively, use the interactive plugin installer:**
-
-```bash
-/plugin
-```
-
-This will open an interactive interface where you can browse and install available plugins.
 
 #### Benefits
 
@@ -1649,29 +1649,7 @@ We welcome contributions from the community! To get started, please refer to our
 
 ## 🔒 Privacy Policy
 
-### Repomix CLI Tool
-
-- **Data Collection**: The Repomix CLI tool does **not** collect, transmit, or store any user data, telemetry, or repository information.
-- **Network Usage**: Repomix CLI operates fully offline after installation. The only cases where an internet connection is needed are:
-  - Installation via npm/yarn.
-  - Using the `--remote` flag to process remote repositories.
-  - Checking for updates (manually triggered).
-- **Security Considerations**: Since all processing is local, Repomix CLI is safe to use with private and internal repositories.
-
-### Repomix Website ([repomix.com](https://repomix.com/))
-
-- **Data Collection**: The Repomix website uses **Google Analytics** to collect usage data, such as page views and user interactions. This helps us understand how the website is used and improve the user experience.
-- **File Processing**: When uploading ZIP files or folders, your files are temporarily stored on our servers for processing. All uploaded files and processed data are automatically deleted immediately after processing is complete.
-
-### Repomix Browser Extension
-
-- **Data Collection**: The Repomix browser extension does **not** collect, transmit, or store any user data, telemetry, or repository information.
-- **Permissions**: The extension only requires minimal permissions necessary to add the Repomix button to GitHub repository pages. It does not access or modify repository data.
-
-### Liability Disclaimer
-
-Repomix (the CLI tool, website, and browser extension) is provided "as is" without any warranties or guarantees.  
-We do not take responsibility for how the generated output is used, including but not limited to its accuracy, legality, or any potential consequences arising from its use.
+See our [Privacy Policy](https://repomix.com/guide/privacy).
 
 ## 📜 License
 
