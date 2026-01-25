@@ -8,6 +8,9 @@ jobs:
   triage-issue:
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    concurrency:
+      group: claude-issue-${{ github.event.issue.number }}
+      cancel-in-progress: false
     permissions:
       contents: read
       issues: write
@@ -20,9 +23,10 @@ jobs:
           fetch-depth: 1
 
       - name: Run Claude Issue Triage
-        uses: anthropics/claude-code-action@6337623ebba10cf8c8214b507993f8062fd4ccfb # v1.0.22
+        uses: anthropics/claude-code-action@1b8ee3b94104046d71fde52ec3557651ad8c0d71 # v1.0.29
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           allowed_non_write_users: "*"
           claude_args: '--model opus --allowedTools "Bash(gh label list:*),Bash(gh issue view:*),Bash(gh issue edit:*),Bash(gh search:*)"'
           prompt: |
@@ -40,6 +44,7 @@ jobs:
 
             2. Next, use gh commands to get context about the issue:
                - Use `gh issue view ${{ github.event.issue.number }}` to retrieve the current issue's details
+               - Check if the issue already has any labels applied and avoid adding duplicate or conflicting labels
                - Use `gh search issues` to find similar issues that might provide context for proper categorization
 
             3. Analyze the issue content, considering:
@@ -64,6 +69,7 @@ jobs:
 
             5. Apply the selected labels:
                - Use `gh issue edit ${{ github.event.issue.number }} --add-label "label1,label2"` to apply your selected labels
+               - Do not remove existing labels
                - DO NOT post any comments explaining your decision
                - DO NOT communicate directly with users
                - If no labels are clearly applicable, do not apply any labels
