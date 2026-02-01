@@ -5,7 +5,7 @@ import Handlebars from 'handlebars';
 import type { RepomixConfigMerged } from '../../config/configSchema.js';
 import { RepomixError } from '../../shared/errorHandle.js';
 import { type FileSearchResult, listDirectories, listFiles, searchFiles } from '../file/fileSearch.js';
-import { generateTreeString } from '../file/fileTreeGenerate.js';
+import { type FilesByRoot, generateTreeString, generateTreeStringWithRoots } from '../file/fileTreeGenerate.js';
 import type { ProcessedFile } from '../file/fileTypes.js';
 import type { GitDiffResult } from '../git/gitDiffHandle.js';
 import type { GitLogResult } from '../git/gitLogHandle.js';
@@ -22,6 +22,35 @@ import {
 import { getMarkdownTemplate } from './outputStyles/markdownStyle.js';
 import { getPlainTemplate } from './outputStyles/plainStyle.js';
 import { getXmlTemplate } from './outputStyles/xmlStyle.js';
+
+// Cache for compiled Handlebars templates to avoid recompilation on every call
+const compiledTemplateCache = new Map<string, Handlebars.TemplateDelegate>();
+
+const getCompiledTemplate = (style: string): Handlebars.TemplateDelegate => {
+  const cached = compiledTemplateCache.get(style);
+  if (cached) {
+    return cached;
+  }
+
+  let template: string;
+  switch (style) {
+    case 'xml':
+      template = getXmlTemplate();
+      break;
+    case 'markdown':
+      template = getMarkdownTemplate();
+      break;
+    case 'plain':
+      template = getPlainTemplate();
+      break;
+    default:
+      throw new RepomixError(`Unsupported output style for handlebars template: ${style}`);
+  }
+
+  const compiled = Handlebars.compile(template);
+  compiledTemplateCache.set(style, compiled);
+  return compiled;
+};
 
 const calculateMarkdownDelimiter = (files: ReadonlyArray<ProcessedFile>): string => {
   const maxBackticks = files
@@ -190,23 +219,8 @@ const generateHandlebarOutput = async (
   renderContext: RenderContext,
   processedFiles?: ProcessedFile[],
 ): Promise<string> => {
-  let template: string;
-  switch (config.output.style) {
-    case 'xml':
-      template = getXmlTemplate();
-      break;
-    case 'markdown':
-      template = getMarkdownTemplate();
-      break;
-    case 'plain':
-      template = getPlainTemplate();
-      break;
-    default:
-      throw new RepomixError(`Unsupported output style for handlebars template: ${config.output.style}`);
-  }
-
   try {
-    const compiledTemplate = Handlebars.compile(template);
+    const compiledTemplate = getCompiledTemplate(config.output.style);
     return `${compiledTemplate(renderContext).trim()}\n`;
   } catch (error) {
     if (error instanceof RangeError && error.message === 'Invalid string length') {
@@ -243,6 +257,7 @@ export const generateOutput = async (
   allFilePaths: string[],
   gitDiffResult: GitDiffResult | undefined = undefined,
   gitLogResult: GitLogResult | undefined = undefined,
+  filePathsByRoot?: FilesByRoot[],
   deps = {
     buildOutputGeneratorContext,
     generateHandlebarOutput,
@@ -261,6 +276,7 @@ export const generateOutput = async (
     sortedProcessedFiles,
     gitDiffResult,
     gitLogResult,
+    filePathsByRoot,
   );
   const renderContext = createRenderContext(outputGeneratorContext);
 
@@ -286,6 +302,7 @@ export const buildOutputGeneratorContext = async (
   processedFiles: ProcessedFile[],
   gitDiffResult: GitDiffResult | undefined = undefined,
   gitLogResult: GitLogResult | undefined = undefined,
+  filePathsByRoot?: FilesByRoot[],
   deps = {
     listDirectories,
     listFiles,
@@ -357,9 +374,19 @@ export const buildOutputGeneratorContext = async (
     }
   }
 
+  // Generate tree string - use multi-root format if filePathsByRoot is provided
+  // generateTreeStringWithRoots handles single root case internally
+  let treeString: string;
+  if (filePathsByRoot) {
+    treeString = generateTreeStringWithRoots(filePathsByRoot, directoryPathsForTree);
+  } else {
+    // Fallback for when root info is not available
+    treeString = generateTreeString(filePathsForTree, directoryPathsForTree);
+  }
+
   return {
     generationDate: new Date().toISOString(),
-    treeString: generateTreeString(filePathsForTree, directoryPathsForTree),
+    treeString,
     processedFiles,
     config,
     instruction: repositoryInstruction,

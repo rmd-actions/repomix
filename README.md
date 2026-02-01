@@ -626,6 +626,7 @@ Instruction
 - `--truncate-base64`: Truncate long base64 data strings to reduce output size
 - `--header-text <text>`: Custom text to include at the beginning of the output
 - `--instruction-file-path <path>`: Path to file containing custom instructions to include in output
+- `--split-output <size>`: Split output into multiple numbered files (e.g., repomix-output.1.xml, repomix-output.2.xml); size like 500kb, 2mb, or 1.5mb
 - `--include-empty-directories`: Include folders with no files in directory structure
 - `--include-full-directory-structure`: Show complete directory tree in output, including files not matched by --include patterns
 - `--no-git-sort-by-changes`: Don't sort files by git change frequency (default: most changed files first)
@@ -681,6 +682,9 @@ repomix --compress
 
 # Process specific files
 repomix --include "src/**/*.ts" --ignore "**/*.test.ts"
+
+# Split output into multiple files (max size per part)
+repomix --split-output 20mb
 
 # Remote repository with branch
 repomix --remote https://github.com/user/repo/tree/main
@@ -836,6 +840,24 @@ This helps you:
 - **Optimize file selection** using `--include` and `--ignore` patterns  
 - **Plan compression strategies** by targeting the largest contributors
 - **Balance content vs. context** when preparing code for AI analysis
+
+### Splitting Output for Large Codebases
+
+When working with large codebases, the packed output may exceed file size limits imposed by some AI tools (e.g., Google AI Studio's 1MB limit). Use `--split-output` to automatically split the output into multiple files:
+
+```bash
+repomix --split-output 1mb
+```
+
+This generates numbered files like:
+- `repomix-output.1.xml`
+- `repomix-output.2.xml`
+- `repomix-output.3.xml`
+
+Size can be specified with units: `500kb`, `1mb`, `2mb`, `1.5mb`, etc. Decimal values are supported.
+
+> [!NOTE]
+> Files are grouped by top-level directory to maintain context. A single file or directory will never be split across multiple output files.
 
 ### MCP Server Integration
 
@@ -1171,6 +1193,38 @@ repomix --skill-generate --compress
 repomix --remote yamadashy/repomix --skill-generate
 ```
 
+### Repomix Explorer Skill (Agent Skills)
+
+Repomix provides a ready-to-use **Repomix Explorer** skill that enables AI coding assistants to analyze and explore codebases using Repomix CLI. This skill is designed to work with various AI tools including Claude Code, Cursor, Codex, GitHub Copilot, and more.
+
+#### Quick Install
+
+```bash
+npx add-skill yamadashy/repomix --skill repomix-explorer
+```
+
+This command installs the skill to your AI assistant's skills directory (e.g., `.claude/skills/`), making it immediately available.
+
+#### What It Does
+
+Once installed, you can analyze codebases with natural language instructions.
+
+Analyze remote repositories:
+
+```text
+"What's the structure of this repo?
+https://github.com/facebook/react"
+```
+
+Explore local codebases:
+
+```text
+"What's in this project?
+~/projects/my-app"
+```
+
+This is useful not only for understanding codebases, but also when you want to implement features by referencing your other repositories.
+
 ## ⚙️ Configuration
 
 Repomix supports multiple configuration file formats for flexibility and ease of use.
@@ -1270,6 +1324,7 @@ Here's an explanation of the configuration options:
 | `output.showLineNumbers`         | Whether to add line numbers to each line in the output                                                                       | `false`                |
 | `output.truncateBase64`          | Whether to truncate long base64 data strings (e.g., images) to reduce token count                                            | `false`                |
 | `output.copyToClipboard`         | Whether to copy the output to system clipboard in addition to saving the file                                                | `false`                |
+| `output.splitOutput`             | Split output into multiple numbered files by maximum size per part (e.g., `1000000` for ~1MB). Keeps each file under the limit and avoids splitting files across parts | Not set                |
 | `output.topFilesLength`          | Number of top files to display in the summary. If set to 0, no summary will be displayed                                     | `5`                    |
 | `output.tokenCountTree`          | Whether to display file tree with token count summaries. Can be boolean or number (minimum token count threshold)           | `false`                |
 | `output.includeEmptyDirectories` | Whether to include empty directories in the repository structure                                                             | `false`                |
@@ -1335,6 +1390,7 @@ Example configuration:
     "showLineNumbers": false,
     "truncateBase64": false,
     "copyToClipboard": false,
+    "splitOutput": null, // or a number like 1000000 for ~1MB per file
     "includeEmptyDirectories": false,
     "git": {
       "sortByChanges": true,
@@ -1708,6 +1764,20 @@ async function analyzeFiles(directory) {
 ```
 
 For more examples, check the source code at [website/server/src/remoteRepo.ts](https://github.com/yamadashy/repomix/blob/main/website/server/src/remoteRepo.ts) which demonstrates how repomix.com uses the library.
+
+### Bundling
+
+When bundling repomix with tools like Rolldown or esbuild, some dependencies must remain external and WASM files need to be copied:
+
+**External dependencies (cannot be bundled):**
+- `tinypool` - Spawns worker threads using file paths
+- `tiktoken` - Loads WASM files dynamically at runtime
+
+**WASM files to copy:**
+- `web-tree-sitter.wasm` → Same directory as bundled JS (required for code compression feature)
+- Tree-sitter language files → Directory specified by `REPOMIX_WASM_DIR` environment variable
+
+For a working example, see [website/server/scripts/bundle.mjs](https://github.com/yamadashy/repomix/blob/main/website/server/scripts/bundle.mjs).
 
 ## 🤝 Contribution
 
