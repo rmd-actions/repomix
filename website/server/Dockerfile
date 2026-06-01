@@ -6,6 +6,9 @@ FROM node:24-alpine AS builder
 # Install git (required for GitHub-based npm dependencies)
 RUN apk add --no-cache git
 
+# Downgrade npm to avoid --min-release-age conflict with --before for git deps
+RUN npm install -g npm@11.4.0
+
 WORKDIR /app
 COPY package*.json ./
 
@@ -25,6 +28,9 @@ FROM node:24-alpine
 # Install git and ca-certificates (required by repomix for remote repository processing)
 RUN apk add --no-cache git ca-certificates
 
+# Downgrade npm to avoid --min-release-age conflict with --before for git deps (used by compose dev command)
+RUN npm install -g npm@11.4.0
+
 WORKDIR /app
 
 # Copy bundled server and WASM files
@@ -32,9 +38,7 @@ COPY --from=builder /app/dist-bundled ./dist-bundled
 
 # Copy external dependencies (cannot be bundled due to runtime requirements)
 # - tinypool: spawns worker threads using file paths
-# - tiktoken: loads WASM files dynamically at runtime
 COPY --from=builder /app/node_modules/tinypool ./node_modules/tinypool
-COPY --from=builder /app/node_modules/tiktoken ./node_modules/tiktoken
 
 # Copy warmup script for compile cache generation
 COPY --from=builder /app/warmup.mjs ./warmup.mjs

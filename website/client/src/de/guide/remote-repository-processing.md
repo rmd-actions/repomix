@@ -55,6 +55,28 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
   --remote user/repo
 ```
 
+## Sicherheit
+
+Aus Sicherheitsgründen werden Konfigurationsdateien (`repomix.config.*`) in Remote-Repositories standardmäßig nicht geladen. Dadurch wird verhindert, dass nicht vertrauenswürdige Repositories über Konfigurationsdateien wie `repomix.config.ts` Code ausführen.
+
+Ihre globale Konfiguration und CLI-Optionen werden weiterhin angewendet.
+
+Um der Konfiguration eines Remote-Repositorys zu vertrauen:
+
+```bash
+# Per CLI-Flag
+repomix --remote user/repo --remote-trust-config
+
+# Per Umgebungsvariable
+REPOMIX_REMOTE_TRUST_CONFIG=true repomix --remote user/repo
+```
+
+Bei Verwendung von `--config` mit `--remote` ist ein absoluter Pfad erforderlich:
+
+```bash
+repomix --remote user/repo --config /home/user/repomix.config.json
+```
+
 ## Häufige Probleme
 
 ### Zugriffsprobleme
@@ -65,4 +87,11 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
 ### Große Repositories
 - Verwenden Sie `--include`, um bestimmte Pfade auszuwählen
 - Aktivieren Sie `--remove-comments`
-- Verarbeiten Sie Branches separat 
+- Verarbeiten Sie Branches separat
+
+## Verwandte Ressourcen
+
+- [Befehlszeilenoptionen](/de/guide/command-line-options) - Vollständige CLI-Referenz einschließlich `--remote`-Optionen
+- [Konfiguration](/de/guide/configuration) - Standardoptionen für Remote-Verarbeitung einrichten
+- [Code-Komprimierung](/de/guide/code-compress) - Ausgabegröße für große Repositories reduzieren
+- [Sicherheit](/de/guide/security) - Wie Repomix sensible Daten erkennt

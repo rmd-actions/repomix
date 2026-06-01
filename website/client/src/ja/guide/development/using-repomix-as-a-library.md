@@ -52,10 +52,13 @@ async function processRemoteRepo(repoUrl) {
     output: 'output.xml',
     compress: true
   } as CliOptions;
-  
+
   return await runCli(['.'], process.cwd(), options);
 }
 ```
+
+> [!NOTE]
+> セキュリティ上の理由から、リモートリポジトリ内の設定ファイルはデフォルトでは読み込まれません。リモートリポジトリの設定を信頼する場合は、オプションに `remoteTrustConfig: true` を追加するか、環境変数 `REPOMIX_REMOTE_TRUST_CONFIG=true` を設定してください。
 
 ## コアコンポーネントの使用
 
@@ -87,7 +90,6 @@ RolldownやesbuildなどのツールでRepomixをバンドルする場合、一�
 
 **external必須の依存関係（バンドル不可）：**
 - `tinypool` - ファイルパスを使用してワーカースレッドを起動
-- `tiktoken` - 実行時にWASMファイルを動的に読み込み
 
 **コピーが必要なWASMファイル：**
 - `web-tree-sitter.wasm` → バンドルされたJSと同じディレクトリ（コード圧縮機能に必要）

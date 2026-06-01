@@ -1,4 +1,5 @@
 import { lintSource } from '@secretlint/core';
+import { secretLintProfiler } from '@secretlint/profiler';
 import { creator } from '@secretlint/secretlint-rule-preset-recommend';
 import type { SecretLintCoreConfig } from '@secretlint/types';
 import { logger, setLogLevelByWorkerData } from '../../../shared/logger.js';
@@ -7,13 +8,49 @@ import { logger, setLogLevelByWorkerData } from '../../../shared/logger.js';
 // This must be called before any logging operations in the worker
 setLogLevelByWorkerData();
 
+// Disable @secretlint/profiler inside this worker.
+//
+// secretLintProfiler is a module-level singleton that installs a global
+// PerformanceObserver on import and, for every `lintSource` call, pushes one
+// entry per mark into an unbounded `entries` array. Each incoming mark then
+// runs an O(n) `entries.find()` scan against all prior entries, making the
+// total profiler cost across a single worker's lifetime O(n^2) in the number
+// of files processed. For a typical ~1000-file repo this adds ~500-900ms of
+// pure profiler bookkeeping per worker with zero functional benefit —
+// secretlint core only *writes* marks via `profiler.mark()` and never reads
+// back `getEntries()` / `getMeasures()` during linting.
+//
+// Replacing `mark` with a no-op prevents any `performance.mark()` calls from
+// firing, so the observer callback never runs and `entries` stays empty.
+//
+// Use `Object.defineProperty` + try/catch so the worker still boots even if
+// a future @secretlint/profiler version makes `mark` a getter-only or
+// non-configurable property — the optimization would silently regress in
+// that case, but the security check itself keeps working.
+try {
+  Object.defineProperty(secretLintProfiler, 'mark', {
+    value: () => {},
+    writable: true,
+    configurable: true,
+  });
+} catch (error) {
+  // Property may be non-configurable in a future secretlint version.
+  // Security linting still works correctly — only this performance
+  // optimization is skipped.
+  logger.trace('Could not override secretLintProfiler.mark; leaving profiler enabled', error);
+}
+
 // Security check type to distinguish between regular files, git diffs, and git logs
 export type SecurityCheckType = 'file' | 'gitDiff' | 'gitLog';
 
-export interface SecurityCheckTask {
+export interface SecurityCheckItem {
   filePath: string;
   content: string;
   type: SecurityCheckType;
+}
+
+export interface SecurityCheckTask {
+  items: SecurityCheckItem[];
 }
 
 export interface SuspiciousFileResult {
@@ -22,21 +59,36 @@ export interface SuspiciousFileResult {
   type: SecurityCheckType;
 }
 
-export default async ({ filePath, content, type }: SecurityCheckTask) => {
-  const config = createSecretLintConfig();
+export const createSecretLintConfig = (): SecretLintCoreConfig => ({
+  rules: [
+    {
+      id: '@secretlint/secretlint-rule-preset-recommend',
+      rule: creator,
+    },
+  ],
+});
+
+// Cache config at module level - created once per worker, reused for all tasks
+const cachedConfig = createSecretLintConfig();
+
+export default async (task: SecurityCheckTask): Promise<(SuspiciousFileResult | null)[]> => {
+  const config = cachedConfig;
+  const processStartAt = process.hrtime.bigint();
 
   try {
-    const processStartAt = process.hrtime.bigint();
-    const secretLintResult = await runSecretLint(filePath, content, type, config);
-    const processEndAt = process.hrtime.bigint();
+    const results: (SuspiciousFileResult | null)[] = [];
+    for (const item of task.items) {
+      results.push(await runSecretLint(item.filePath, item.content, item.type, config));
+    }
 
+    const processEndAt = process.hrtime.bigint();
     logger.trace(
-      `Checked security on ${filePath}. Took: ${(Number(processEndAt - processStartAt) / 1e6).toFixed(2)}ms`,
+      `Checked security on ${task.items.length} items. Took: ${(Number(processEndAt - processStartAt) / 1e6).toFixed(2)}ms`,
     );
 
-    return secretLintResult;
+    return results;
   } catch (error) {
-    logger.error(`Error checking security on ${filePath}:`, error);
+    logger.error('Error in security check worker:', error);
     throw error;
   }
 };
@@ -74,15 +126,6 @@ export const runSecretLint = async (
 
   return null;
 };
-
-export const createSecretLintConfig = (): SecretLintCoreConfig => ({
-  rules: [
-    {
-      id: '@secretlint/secretlint-rule-preset-recommend',
-      rule: creator,
-    },
-  ],
-});
 
 // Export cleanup function for Tinypool teardown (no cleanup needed for this worker)
 export const onWorkerTermination = async (): Promise<void> => {

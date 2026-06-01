@@ -3,8 +3,6 @@ FROM node:24
 ARG TZ
 ENV TZ="$TZ"
 
-ARG CLAUDE_CODE_VERSION=latest
-
 # Install basic development tools and iptables/ipset
 RUN apt-get update && apt-get install -y --no-install-recommends \
   less \
@@ -27,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   vim \
   fd-find \
   ripgrep \
+  hyperfine \
   && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create symlink for fd (Debian/Ubuntu names it fdfind)
@@ -44,8 +43,7 @@ RUN ARCH=$(dpkg --print-architecture) && \
   rm /tmp/ast-grep.zip
 
 # Ensure default node user has access to /usr/local/share
-RUN mkdir -p /usr/local/share/npm-global && \
-  chown -R node:node /usr/local/share
+RUN chown -R node:node /usr/local/share
 
 ARG USERNAME=node
 
@@ -73,16 +71,15 @@ RUN ARCH=$(dpkg --print-architecture) && \
 # Set up non-root user
 USER node
 
-# Install global packages
-ENV NPM_CONFIG_PREFIX=/usr/local/share/npm-global
-ENV PATH=$PATH:/usr/local/share/npm-global/bin
+# Add Claude Code to PATH
+ENV PATH=$PATH:/home/node/.local/bin
 
 # Set the default shell to zsh rather than sh
 ENV SHELL=/bin/zsh
 
 # Set the default editor and visual
-ENV EDITOR=nano
-ENV VISUAL=nano
+ENV EDITOR=vim
+ENV VISUAL=vim
 
 # Default powerline10k theme
 ARG ZSH_IN_DOCKER_VERSION=1.2.0
@@ -98,8 +95,8 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "setopt HIST_IGNORE_DUPS" \
   -x
 
-# Install Claude
-RUN npm install -g @anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}
+# Install Claude Code using native installer
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
 
 # Copy and set up firewall script

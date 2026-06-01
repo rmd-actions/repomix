@@ -57,6 +57,9 @@ async function processRemoteRepo(repoUrl) {
 }
 ```
 
+> [!NOTE]
+> Aus Sicherheitsgründen werden Konfigurationsdateien in Remote-Repositories standardmäßig nicht geladen. Um der Konfiguration eines Remote-Repositorys zu vertrauen, fügen Sie `remoteTrustConfig: true` zu den Optionen hinzu oder setzen Sie die Umgebungsvariable `REPOMIX_REMOTE_TRUST_CONFIG=true`.
+
 ## Verwendung der Kernkomponenten
 
 Für mehr Kontrolle können Sie die Low-Level-APIs von Repomix direkt verwenden:
@@ -87,7 +90,6 @@ Beim Bündeln von Repomix mit Tools wie Rolldown oder esbuild müssen einige Abh
 
 **Externe Abhängigkeiten (können nicht gebündelt werden):**
 - `tinypool` - Startet Worker-Threads unter Verwendung von Dateipfaden
-- `tiktoken` - Lädt WASM-Dateien dynamisch zur Laufzeit
 
 **Zu kopierende WASM-Dateien:**
 - `web-tree-sitter.wasm` → Gleiches Verzeichnis wie das gebündelte JS (erforderlich für die Code-Komprimierungsfunktion)

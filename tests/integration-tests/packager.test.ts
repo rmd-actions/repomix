@@ -115,6 +115,13 @@ describe.runIf(!isWindows)('packager integration', () => {
           });
         },
         produceOutput,
+        createMetricsTaskRunner: () => ({
+          taskRunner: {
+            run: async () => 0,
+            cleanup: async () => {},
+          },
+          warmupPromise: Promise.resolve(),
+        }),
         calculateMetrics: async (
           processedFiles,
           _output,

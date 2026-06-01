@@ -57,6 +57,9 @@ async function processRemoteRepo(repoUrl) {
 }
 ```
 
+> [!NOTE]
+> 出于安全考虑，远程仓库中的配置文件默认不会被加载。如需信任远程仓库的配置，请在选项中添加 `remoteTrustConfig: true`，或设置环境变量 `REPOMIX_REMOTE_TRUST_CONFIG=true`。
+
 ## 使用核心组件
 
 要获得更多控制，你可以直接使用 Repomix 的低级 API：
@@ -87,7 +90,6 @@ async function analyzeFiles(directory) {
 
 **External 依赖项（无法打包）：**
 - `tinypool` - 使用文件路径生成 worker 线程
-- `tiktoken` - 在运行时动态加载 WASM 文件
 
 **需要复制的 WASM 文件：**
 - `web-tree-sitter.wasm` → 与打包后的 JS 相同的目录（代码压缩功能需要）

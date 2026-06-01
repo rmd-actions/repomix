@@ -136,8 +136,31 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix --remote yamadash
 
 Lệnh này sẽ đóng gói kho lưu trữ từ xa và lưu đầu ra vào thư mục `output` cục bộ của bạn.
 
-## Tiếp theo là gì?
+## Bảo mật
 
-- [Tùy chọn dòng lệnh](command-line-options.md): Xem tất cả các tùy chọn dòng lệnh có sẵn
-- [Cấu hình](configuration.md): Tìm hiểu về tệp cấu hình
-- [GitHub Actions](github-actions.md): Tìm hiểu về tích hợp GitHub Actions
+Để đảm bảo an toàn, các tệp cấu hình (`repomix.config.*`) trong kho lưu trữ từ xa sẽ không được tải theo mặc định. Điều này ngăn chặn các kho lưu trữ không đáng tin cậy thực thi mã thông qua các tệp cấu hình như `repomix.config.ts`.
+
+Cấu hình toàn cục và các tùy chọn dòng lệnh của bạn vẫn được áp dụng.
+
+Để tin tưởng cấu hình của kho lưu trữ từ xa:
+
+```bash
+# Sử dụng cờ dòng lệnh
+repomix --remote user/repo --remote-trust-config
+
+# Sử dụng biến môi trường
+REPOMIX_REMOTE_TRUST_CONFIG=true repomix --remote user/repo
+```
+
+Khi sử dụng `--config` với `--remote`, cần chỉ định đường dẫn tuyệt đối:
+
+```bash
+repomix --remote user/repo --config /home/user/repomix.config.json
+```
+
+## Tài nguyên liên quan
+
+- [Tùy chọn dòng lệnh](/vi/guide/command-line-options) - Tham chiếu CLI đầy đủ bao gồm các tùy chọn `--remote`
+- [Cấu hình](/vi/guide/configuration) - Thiết lập các tùy chọn mặc định cho xử lý từ xa
+- [Nén mã](/vi/guide/code-compress) - Giảm kích thước đầu ra cho các kho lưu trữ lớn
+- [Bảo mật](/vi/guide/security) - Cách Repomix xử lý phát hiện dữ liệu nhạy cảm

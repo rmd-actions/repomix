@@ -55,6 +55,28 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
   --remote user/repo
 ```
 
+## 보안
+
+보안을 위해 원격 저장소의 설정 파일(`repomix.config.*`)은 기본적으로 로드되지 않습니다. 이를 통해 신뢰할 수 없는 저장소가 `repomix.config.ts` 같은 설정 파일을 통해 코드를 실행하는 것을 방지합니다.
+
+글로벌 설정과 CLI 옵션은 그대로 적용됩니다.
+
+원격 저장소의 설정을 신뢰하려면:
+
+```bash
+# CLI 플래그 사용
+repomix --remote user/repo --remote-trust-config
+
+# 환경 변수 사용
+REPOMIX_REMOTE_TRUST_CONFIG=true repomix --remote user/repo
+```
+
+`--remote`와 `--config`를 함께 사용할 때는 절대 경로를 지정해야 합니다:
+
+```bash
+repomix --remote user/repo --config /home/user/repomix.config.json
+```
+
 ## 일반적인 문제
 
 ### 접근 문제
@@ -66,3 +88,10 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
 - `--include`를 사용하여 특정 경로 선택
 - `--remove-comments` 활성화
 - 브랜치별로 개별 처리
+
+## 관련 리소스
+
+- [명령행 옵션](/ko/guide/command-line-options) - `--remote` 옵션을 포함한 전체 CLI 레퍼런스
+- [설정](/ko/guide/configuration) - 원격 처리를 위한 기본 옵션 설정
+- [코드 압축](/ko/guide/code-compress) - 대규모 저장소의 출력 크기 줄이기
+- [보안](/ko/guide/security) - Repomix의 민감한 데이터 감지 방식

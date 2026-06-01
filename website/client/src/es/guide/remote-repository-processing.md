@@ -55,6 +55,28 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
   --remote usuario/repositorio
 ```
 
+## Seguridad
+
+Por seguridad, los archivos de configuración (`repomix.config.*`) de los repositorios remotos no se cargan de forma predeterminada. Esto evita que repositorios no confiables ejecuten código a través de archivos de configuración como `repomix.config.ts`.
+
+Tu configuración global y las opciones de CLI se siguen aplicando.
+
+Para confiar en la configuración de un repositorio remoto:
+
+```bash
+# Usando el flag de CLI
+repomix --remote usuario/repositorio --remote-trust-config
+
+# Usando una variable de entorno
+REPOMIX_REMOTE_TRUST_CONFIG=true repomix --remote usuario/repositorio
+```
+
+Al usar `--config` con `--remote`, se requiere una ruta absoluta:
+
+```bash
+repomix --remote usuario/repositorio --config /home/user/repomix.config.json
+```
+
 ## Problemas comunes
 
 ### Problemas de acceso
@@ -66,3 +88,10 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
 - Usa `--include` para seleccionar rutas específicas
 - Habilita `--remove-comments`
 - Procesa las ramas por separado
+
+## Recursos relacionados
+
+- [Opciones de línea de comandos](/es/guide/command-line-options) - Referencia completa de CLI incluyendo opciones `--remote`
+- [Configuración](/es/guide/configuration) - Configurar opciones predeterminadas para procesamiento remoto
+- [Compresión de código](/es/guide/code-compress) - Reducir el tamaño de salida para repositorios grandes
+- [Seguridad](/es/guide/security) - Cómo Repomix maneja la detección de datos sensibles

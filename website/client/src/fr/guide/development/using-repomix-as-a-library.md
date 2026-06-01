@@ -57,6 +57,9 @@ async function processRemoteRepo(repoUrl) {
 }
 ```
 
+> [!NOTE]
+> Par mesure de sécurité, les fichiers de configuration des dépôts distants ne sont pas chargés par défaut. Pour faire confiance à la configuration d'un dépôt distant, ajoutez `remoteTrustConfig: true` aux options, ou définissez la variable d'environnement `REPOMIX_REMOTE_TRUST_CONFIG=true`.
+
 ## Utilisation des composants principaux
 
 Pour un contrôle plus précis, vous pouvez utiliser directement les API de bas niveau de Repomix :
@@ -87,7 +90,6 @@ Lors du bundling de repomix avec des outils comme Rolldown ou esbuild, certaines
 
 **Dépendances externes (ne peuvent pas être bundlées) :**
 - `tinypool` - Lance des threads de travail en utilisant des chemins de fichiers
-- `tiktoken` - Charge les fichiers WASM dynamiquement à l'exécution
 
 **Fichiers WASM à copier :**
 - `web-tree-sitter.wasm` → Même répertoire que le JS bundlé (requis pour la fonctionnalité de compression de code)

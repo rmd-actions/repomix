@@ -1,10 +1,9 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import XMLBuilder from 'fast-xml-builder';
 import Handlebars from 'handlebars';
 import type { RepomixConfigMerged } from '../../config/configSchema.js';
 import { RepomixError } from '../../shared/errorHandle.js';
-import { type FileSearchResult, listDirectories, listFiles, searchFiles } from '../file/fileSearch.js';
+import { listDirectories, listFiles, searchFiles } from '../file/fileSearch.js';
 import { type FilesByRoot, generateTreeString, generateTreeStringWithRoots } from '../file/fileTreeGenerate.js';
 import type { ProcessedFile } from '../file/fileTypes.js';
 import type { GitDiffResult } from '../git/gitDiffHandle.js';
@@ -106,7 +105,9 @@ export const createRenderContext = (outputGeneratorContext: OutputGeneratorConte
 };
 
 const generateParsableXmlOutput = async (renderContext: RenderContext): Promise<string> => {
-  const xmlBuilder = new XMLBuilder({ ignoreAttributes: false });
+  // Lazy-load fast-xml-builder (~3ms) — only used for parsable XML output (non-default)
+  const FastXmlBuilder = (await import('fast-xml-builder')).default;
+  const xmlBuilder = new FastXmlBuilder({ ignoreAttributes: false });
   const xmlDocument = {
     repomix: {
       file_summary: renderContext.fileSummaryEnabled
@@ -258,6 +259,7 @@ export const generateOutput = async (
   gitDiffResult: GitDiffResult | undefined = undefined,
   gitLogResult: GitLogResult | undefined = undefined,
   filePathsByRoot?: FilesByRoot[],
+  emptyDirPaths?: string[],
   deps = {
     buildOutputGeneratorContext,
     generateHandlebarOutput,
@@ -277,6 +279,7 @@ export const generateOutput = async (
     gitDiffResult,
     gitLogResult,
     filePathsByRoot,
+    emptyDirPaths,
   );
   const renderContext = createRenderContext(outputGeneratorContext);
 
@@ -303,6 +306,7 @@ export const buildOutputGeneratorContext = async (
   gitDiffResult: GitDiffResult | undefined = undefined,
   gitLogResult: GitLogResult | undefined = undefined,
   filePathsByRoot?: FilesByRoot[],
+  emptyDirPaths?: string[],
   deps = {
     listDirectories,
     listFiles,
@@ -347,7 +351,8 @@ export const buildOutputGeneratorContext = async (
       const additionalFiles = allRepoFiles.filter((p) => !includedSet.has(p));
 
       directoryPathsForTree = allDirectories;
-      filePathsForTree = Array.from(new Set([...allFilePaths, ...additionalFiles]));
+      // additionalFiles is already disjoint from allFilePaths (filtered above), so no dedup needed
+      filePathsForTree = allFilePaths.concat(additionalFiles);
     } catch (error) {
       throw new RepomixError(
         `Failed to build full directory structure: ${error instanceof Error ? error.message : String(error)}`,
@@ -355,22 +360,21 @@ export const buildOutputGeneratorContext = async (
       );
     }
   } else if (config.output.directoryStructure && config.output.includeEmptyDirectories) {
-    // Default behavior: include empty directories only
-    try {
-      const merged = (await Promise.all(rootDirs.map((rootDir) => deps.searchFiles(rootDir, config)))).reduce(
-        (acc: FileSearchResult, curr: FileSearchResult) =>
-          ({
-            filePaths: [...acc.filePaths, ...curr.filePaths],
-            emptyDirPaths: [...acc.emptyDirPaths, ...curr.emptyDirPaths],
-          }) as FileSearchResult,
-        { filePaths: [], emptyDirPaths: [] },
-      ).emptyDirPaths;
-      directoryPathsForTree = [...new Set(merged)].sort();
-    } catch (error) {
-      throw new RepomixError(
-        `Failed to search for empty directories: ${error instanceof Error ? error.message : String(error)}`,
-        error instanceof Error ? { cause: error } : undefined,
-      );
+    // Reuse pre-computed emptyDirPaths from the initial searchFiles call when available,
+    // avoiding a redundant full directory scan.
+    if (emptyDirPaths) {
+      directoryPathsForTree = emptyDirPaths;
+    } else {
+      try {
+        const results = await Promise.all(rootDirs.map((rootDir) => deps.searchFiles(rootDir, config)));
+        const merged = results.flatMap((r) => r.emptyDirPaths);
+        directoryPathsForTree = [...new Set(merged)].sort();
+      } catch (error) {
+        throw new RepomixError(
+          `Failed to search for empty directories: ${error instanceof Error ? error.message : String(error)}`,
+          error instanceof Error ? { cause: error } : undefined,
+        );
+      }
     }
   }
 

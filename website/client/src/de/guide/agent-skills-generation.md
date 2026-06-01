@@ -73,31 +73,20 @@ Die Skills werden mit folgender Struktur generiert:
     ├── summary.md              # Zweck, Format und Statistiken
     ├── project-structure.md    # Verzeichnisbaum mit Zeilenzahlen
     ├── files.md                # Alle Dateiinhalte (grep-freundlich)
-    └── tech-stack.md           # Sprachen, Frameworks, Abhängigkeiten
+    └── tech-stacks.md           # Sprachen, Frameworks, Abhängigkeiten
 ```
 
 ### Dateibeschreibungen
 
-#### SKILL.md
+| Datei | Zweck | Inhalt |
+|-------|-------|--------|
+| `SKILL.md` | Haupt-Skills-Metadaten & Dokumentation | Skills-Name, Beschreibung, Projektinformationen, Datei-/Zeilen-/Token-Anzahlen, Nutzungsübersicht, häufige Anwendungsfälle und Tipps |
+| `references/summary.md` | Zweck, Format und Statistiken | Erklärung der Referenz-Codebase, Dateistruktur-Dokumentation, Nutzungsrichtlinien, Aufschlüsselung nach Dateityp und Sprache |
+| `references/project-structure.md` | Dateifindung | Verzeichnisbaum mit Zeilenzahlen pro Datei |
+| `references/files.md` | Durchsuchbare Code-Referenz | Alle Dateiinhalte mit Syntax-Highlighting-Headern, optimiert für grep-freundliche Suche |
+| `references/tech-stacks.md` | Tech-Stack-Zusammenfassung | Sprachen, Frameworks, Laufzeitversionen, Paketmanager, Abhängigkeiten, Konfigurationsdateien |
 
-Die Haupt-Skills-Datei enthält:
-- Skills-Name, Beschreibung und Projektinformationen
-- Dateianzahl, Zeilenanzahl und Token-Anzahl
-- Übersicht zur Verwendung der Skills
-- Dateispeicherorte und Formaterklärung
-- Häufige Anwendungsfälle und Tipps
-
-#### references/summary.md
-
-Enthält:
-- **Zweck**: Erklärt, dass dies eine Referenz-Codebase für KI-Nutzung ist
-- **Dateistruktur**: Dokumentiert den Inhalt jeder Referenzdatei
-- **Nutzungsrichtlinien**: Wie die Skills effektiv verwendet werden
-- **Statistiken**: Aufschlüsselung nach Dateityp, Sprache und größten Dateien
-
-#### references/project-structure.md
-
-Verzeichnisbaum mit Zeilenzahlen pro Datei zur einfachen Dateifindung:
+#### Beispiel: references/project-structure.md
 
 ```text
 src/
@@ -107,9 +96,7 @@ src/
     math.ts (87 lines)
 ```
 
-#### references/files.md
-
-Alle Dateiinhalte mit Syntax-Highlighting-Headern, optimiert für grep-freundliche Suche:
+#### Beispiel: references/files.md
 
 ````markdown
 ## File: src/index.ts
@@ -122,7 +109,7 @@ export function main() {
 ```
 ````
 
-#### references/tech-stack.md
+#### Beispiel: references/tech-stacks.md
 
 Automatisch erkannter Tech-Stack aus Abhängigkeitsdateien:
 - **Sprachen**: TypeScript, JavaScript, Python, usw.

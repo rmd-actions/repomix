@@ -179,6 +179,9 @@ async function packRemoteRepo() {
 packRemoteRepo();
 ```
 
+> [!NOTE]
+> Để đảm bảo an toàn, các tệp cấu hình trong kho lưu trữ từ xa sẽ không được tải theo mặc định. Để tin tưởng cấu hình của kho lưu trữ từ xa, thêm `remoteTrustConfig: true` vào các tùy chọn, hoặc đặt biến môi trường `REPOMIX_REMOTE_TRUST_CONFIG=true`.
+
 ### Tùy chọn đầu ra tùy chỉnh
 
 ```typescript
@@ -310,7 +313,6 @@ Khi đóng gói repomix bằng các công cụ như Rolldown hoặc esbuild, m�
 
 **Dependency external (không thể đóng gói):**
 - `tinypool` - Sinh worker thread sử dụng đường dẫn tệp
-- `tiktoken` - Tải tệp WASM động trong runtime
 
 **Tệp WASM cần sao chép:**
 - `web-tree-sitter.wasm` → Cùng thư mục với JS đã đóng gói (cần thiết cho tính năng nén mã)

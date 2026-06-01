@@ -57,6 +57,9 @@ async function processRemoteRepo(repoUrl) {
 }
 ```
 
+> [!NOTE]
+> 보안상의 이유로, 원격 저장소의 설정 파일은 기본적으로 로드되지 않습니다. 원격 저장소의 설정을 신뢰하려면 옵션에 `remoteTrustConfig: true`를 추가하거나, 환경 변수 `REPOMIX_REMOTE_TRUST_CONFIG=true`를 설정하세요.
+
 ## 핵심 컴포넌트 사용
 
 더 많은 제어를 위해 Repomix의 저수준 API를 직접 사용할 수 있습니다:
@@ -87,7 +90,6 @@ Rolldown이나 esbuild 같은 도구로 repomix를 번들링할 때, 일부 의�
 
 **External 의존성 (번들 불가):**
 - `tinypool` - 파일 경로를 사용하여 워커 스레드 생성
-- `tiktoken` - 런타임에 WASM 파일을 동적으로 로드
 
 **복사해야 할 WASM 파일:**
 - `web-tree-sitter.wasm` → 번들된 JS와 동일한 디렉토리 (코드 압축 기능에 필요)

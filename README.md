@@ -9,13 +9,6 @@
 ### [Warp, built for coding with multiple AI agents](https://go.warp.dev/repomix)
 [Available for MacOS, Linux, & Windows](https://go.warp.dev/repomix)<br>
 
-   <br>
-
-   <a href="https://git-tower.com/?utm_source=repomix&utm_medium=referral">
-      <img alt="Tower sponsorship" width="400" src="website/client/src/public/images/sponsors/tower/tower-most-powerful-git-client.png">
-   </a>
-
-### [Tower, the most powerful Git client for Mac and Windows](https://git-tower.com/?utm_source=repomix&utm_medium=referral)
 
 </div>
 
@@ -47,7 +40,7 @@
 [![npm](https://img.shields.io/npm/v/repomix.svg?maxAge=1000)](https://www.npmjs.com/package/repomix)
 [![npm](https://img.shields.io/npm/d18m/repomix)](https://www.npmjs.com/package/repomix)
 [![Actions Status](https://github.com/yamadashy/repomix/actions/workflows/ci.yml/badge.svg)](https://github.com/yamadashy/repomix/actions?query=workflow%3A"ci")
-[![codecov](https://codecov.io/github/yamadashy/repomix/graph/badge.svg)](https://codecov.io/github/yamadashy/repomix)
+[![codecov](https://codecov.io/github/yamadashy/repomix/graph/badge.svg?token=PYQHDJ5SHX)](https://codecov.io/github/yamadashy/repomix)
 [![Sponsors](https://img.shields.io/github/sponsors/yamadashy?logo=github)](https://github.com/sponsors/yamadashy)
 [![Discord](https://badgen.net/discord/online-members/wNYzTwZFku?icon=discord&label=discord)](https://discord.gg/wNYzTwZFku)
 
@@ -604,51 +597,67 @@ Instruction
 - `-v, --version`: Show version information and exit
 
 #### CLI Input/Output Options
-- `--verbose`: Enable detailed debug logging (shows file processing, token counts, and configuration details)
-- `--quiet`: Suppress all console output except errors (useful for scripting)
-- `--stdout`: Write packed output directly to stdout instead of a file (suppresses all logging)
-- `--stdin`: Read file paths from stdin, one per line (specified files are processed directly)
-- `--copy`: Copy the generated output to system clipboard after processing
-- `--token-count-tree [threshold]`: Show file tree with token counts; optional threshold to show only files with ≥N tokens (e.g., --token-count-tree 100)
-- `--top-files-len <number>`: Number of largest files to show in summary (default: 5, e.g., --top-files-len 20)
+
+| Option | Description |
+|--------|-------------|
+| `--verbose` | Enable detailed debug logging (shows file processing, token counts, and configuration details) |
+| `--quiet` | Suppress all console output except errors (useful for scripting) |
+| `--stdout` | Write packed output directly to stdout instead of a file (suppresses all logging) |
+| `--stdin` | Read file paths from stdin, one per line (specified files are processed directly) |
+| `--copy` | Copy the generated output to system clipboard after processing |
+| `--token-count-tree [threshold]` | Show file tree with token counts; optional threshold to show only files with ≥N tokens (e.g., `--token-count-tree 100`) |
+| `--top-files-len <number>` | Number of largest files to show in summary (default: `5`) |
 
 #### Repomix Output Options
-- `-o, --output <file>`: Output file path (default: repomix-output.xml, use "-" for stdout)
-- `--style <style>`: Output format: xml, markdown, json, or plain (default: xml)
-- `--parsable-style`: Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting)
-- `--compress`: Extract essential code structure (classes, functions, interfaces) using Tree-sitter parsing
-- `--output-show-line-numbers`: Prefix each line with its line number in the output
-- `--no-file-summary`: Omit the file summary section from output
-- `--no-directory-structure`: Omit the directory tree visualization from output
-- `--no-files`: Generate metadata only without file contents (useful for repository analysis)
-- `--remove-comments`: Strip all code comments before packing
-- `--remove-empty-lines`: Remove blank lines from all files
-- `--truncate-base64`: Truncate long base64 data strings to reduce output size
-- `--header-text <text>`: Custom text to include at the beginning of the output
-- `--instruction-file-path <path>`: Path to file containing custom instructions to include in output
-- `--split-output <size>`: Split output into multiple numbered files (e.g., repomix-output.1.xml, repomix-output.2.xml); size like 500kb, 2mb, or 1.5mb
-- `--include-empty-directories`: Include folders with no files in directory structure
-- `--include-full-directory-structure`: Show complete directory tree in output, including files not matched by --include patterns
-- `--no-git-sort-by-changes`: Don't sort files by git change frequency (default: most changed files first)
-- `--include-diffs`: Add git diff section showing working tree and staged changes
-- `--include-logs`: Add git commit history with messages and changed files
-- `--include-logs-count <count>`: Number of recent commits to include with --include-logs (default: 50)
+
+| Option | Description |
+|--------|-------------|
+| `-o, --output <file>` | Output file path (default: `repomix-output.xml`, use `"-"` for stdout) |
+| `--style <style>` | Output format: `xml`, `markdown`, `json`, or `plain` (default: `xml`) |
+| `--parsable-style` | Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting) |
+| `--compress` | Extract essential code structure (classes, functions, interfaces) using Tree-sitter parsing |
+| `--output-show-line-numbers` | Prefix each line with its line number in the output |
+| `--no-file-summary` | Omit the file summary section from output |
+| `--no-directory-structure` | Omit the directory tree visualization from output |
+| `--no-files` | Generate metadata only without file contents (useful for repository analysis) |
+| `--remove-comments` | Strip all code comments before packing |
+| `--remove-empty-lines` | Remove blank lines from all files |
+| `--truncate-base64` | Truncate long base64 data strings to reduce output size |
+| `--header-text <text>` | Custom text to include at the beginning of the output |
+| `--instruction-file-path <path>` | Path to file containing custom instructions to include in output |
+| `--split-output <size>` | Split output into multiple numbered files (e.g., `repomix-output.1.xml`); size like `500kb`, `2mb`, or `1.5mb` |
+| `--include-empty-directories` | Include folders with no files in directory structure |
+| `--include-full-directory-structure` | Show complete directory tree in output, including files not matched by `--include` patterns |
+| `--no-git-sort-by-changes` | Don't sort files by git change frequency (default: most changed files first) |
+| `--include-diffs` | Add git diff section showing working tree and staged changes |
+| `--include-logs` | Add git commit history with messages and changed files |
+| `--include-logs-count <count>` | Number of recent commits to include with `--include-logs` (default: `50`) |
 
 #### File Selection Options
-- `--include <patterns>`: Include only files matching these glob patterns (comma-separated, e.g., "src/**/*.js,*.md")
-- `-i, --ignore <patterns>`: Additional patterns to exclude (comma-separated, e.g., "*.test.js,docs/**")
-- `--no-gitignore`: Don't use .gitignore rules for filtering files
-- `--no-dot-ignore`: Don't use .ignore rules for filtering files
-- `--no-default-patterns`: Don't apply built-in ignore patterns (node_modules, .git, build dirs, etc.)
+
+| Option | Description |
+|--------|-------------|
+| `--include <patterns>` | Include only files matching these glob patterns (comma-separated, e.g., `"src/**/*.js,*.md"`) |
+| `-i, --ignore <patterns>` | Additional patterns to exclude (comma-separated, e.g., `"*.test.js,docs/**"`) |
+| `--no-gitignore` | Don't use `.gitignore` rules for filtering files |
+| `--no-dot-ignore` | Don't use `.ignore` rules for filtering files |
+| `--no-default-patterns` | Don't apply built-in ignore patterns (`node_modules`, `.git`, build dirs, etc.) |
 
 #### Remote Repository Options
-- `--remote <url>`: Clone and pack a remote repository (GitHub URL or user/repo format)
-- `--remote-branch <name>`: Specific branch, tag, or commit to use (default: repository's default branch)
+
+| Option | Description |
+|--------|-------------|
+| `--remote <url>` | Clone and pack a remote repository (GitHub URL or `user/repo` format) |
+| `--remote-branch <name>` | Specific branch, tag, or commit to use (default: repository's default branch) |
+| `--remote-trust-config` | Trust and load config files from remote repositories (disabled by default for security) |
 
 #### Configuration Options
-- `-c, --config <path>`: Use custom config file instead of repomix.config.json
-- `--init`: Create a new repomix.config.json file with defaults
-- `--global`: With --init, create config in home directory instead of current directory
+
+| Option | Description |
+|--------|-------------|
+| `-c, --config <path>` | Use custom config file instead of `repomix.config.json` |
+| `--init` | Create a new `repomix.config.json` file with defaults |
+| `--global` | With `--init`, create config in home directory instead of current directory |
 
 #### Security Options
 - `--no-security-check`: Skip scanning for sensitive data like API keys and passwords
@@ -660,9 +669,12 @@ Instruction
 - `--mcp`: Run as Model Context Protocol server for AI tool integration
 
 #### Agent Skills Generation
-- `--skill-generate [name]`: Generate Claude Agent Skills format output to `.claude/skills/<name>/` directory (name auto-generated if omitted)
-- `--skill-output <path>`: Specify skill output directory path directly (skips location prompt)
-- `-f, --force`: Skip all confirmation prompts (e.g., skill directory overwrite)
+
+| Option | Description |
+|--------|-------------|
+| `--skill-generate [name]` | Generate Claude Agent Skills format output to `.claude/skills/<name>/` directory (name auto-generated if omitted) |
+| `--skill-output <path>` | Specify skill output directory path directly (skips location prompt) |
+| `-f, --force` | Skip all confirmation prompts (e.g., skill directory overwrite) |
 
 #### Examples
 
@@ -751,6 +763,11 @@ repomix --remote https://github.com/yamadashy/repomix --remote-branch 935b695
 # Using commit's URL
 repomix --remote https://github.com/yamadashy/repomix/commit/836abcd7335137228ad77feb28655d85712680f1
 ```
+
+> [!NOTE]
+> For security, config files (`repomix.config.*`) in remote repositories are not loaded by default. This prevents untrusted repositories from executing code via config files. Your global config and CLI options are still applied. To trust a remote repository's config, use `--remote-trust-config` or set `REPOMIX_REMOTE_TRUST_CONFIG=true`.
+>
+> When using `--config` with `--remote`, an absolute path is required (e.g., `--config /home/user/repomix.config.json`).
 
 ### Code Compression
 
@@ -1174,7 +1191,7 @@ The Skills are generated with the following structure:
     ├── summary.md           # Purpose, format, and statistics
     ├── project-structure.md # Directory tree with line counts
     ├── files.md             # All file contents (grep-friendly)
-    └── tech-stack.md        # Languages, frameworks, dependencies
+    └── tech-stacks.md       # Languages, frameworks, dependencies
 ```
 
 #### What's Included
@@ -1183,7 +1200,7 @@ The Skills are generated with the following structure:
 - **summary.md**: Explains the Skills' purpose, usage guidelines, and provides statistics breakdown by file type and language
 - **project-structure.md**: Directory tree with line counts per file for easy file discovery
 - **files.md**: All file contents with syntax highlighting headers, optimized for grep-friendly searching
-- **tech-stack.md**: Auto-detected tech stack from dependency files (`package.json`, `requirements.txt`, `Cargo.toml`, etc.)
+- **tech-stacks.md**: Auto-detected tech stack per package from dependency files (`package.json`, `requirements.txt`, `Cargo.toml`, etc.)
 
 #### Auto-Generated Skills Names
 
@@ -1357,7 +1374,7 @@ Here's an explanation of the configuration options:
 | `ignore.useDefaultPatterns`      | Whether to use default ignore patterns                                                                                       | `true`                 |
 | `ignore.customPatterns`          | Additional patterns to ignore (using [glob patterns](https://github.com/mrmlnc/fast-glob?tab=readme-ov-file#pattern-syntax)) | `[]`                   |
 | `security.enableSecurityCheck`   | Whether to perform security checks on files                                                                                  | `true`                 |
-| `tokenCount.encoding`            | Token count encoding used by OpenAI's [tiktoken](https://github.com/openai/tiktoken) tokenizer (e.g., `o200k_base` for GPT-4o, `cl100k_base` for GPT-4/3.5). See [tiktoken model.py](https://github.com/openai/tiktoken/blob/main/tiktoken/model.py#L24) for encoding details. | `"o200k_base"`         |
+| `tokenCount.encoding`            | Token count encoding for OpenAI-compatible tokenization (e.g., `o200k_base` for GPT-4o, `cl100k_base` for GPT-4/3.5). Powered by [gpt-tokenizer](https://github.com/nicolo-ribaudo/gpt-tokenizer). | `"o200k_base"`         |
 
 The configuration file supports [JSON5](https://json5.org/) syntax, which allows:
 - Comments (both single-line and multi-line)
@@ -1788,13 +1805,25 @@ When bundling repomix with tools like Rolldown or esbuild, some dependencies mus
 
 **External dependencies (cannot be bundled):**
 - `tinypool` - Spawns worker threads using file paths
-- `tiktoken` - Loads WASM files dynamically at runtime
 
 **WASM files to copy:**
 - `web-tree-sitter.wasm` → Same directory as bundled JS (required for code compression feature)
 - Tree-sitter language files → Directory specified by `REPOMIX_WASM_DIR` environment variable
 
 For a working example, see [website/server/scripts/bundle.mjs](https://github.com/yamadashy/repomix/blob/main/website/server/scripts/bundle.mjs).
+
+## 🌍 Community Projects
+
+Discover amazing projects built by the Repomix community!
+
+- [Repomix Runner](https://github.com/massdo/repomix-runner) - VSCode extension for bundling files into a single output for AI processing
+- [Repomix Desktop](https://github.com/KevanMacGee/Repomix-Desktop) - GUI desktop application for Repomix built with Python and CustomTkinter
+- [Python Repomix](https://github.com/AndersonBY/python-repomix) - Python implementation with AST-based compression
+- [Rulefy](https://github.com/niklub/rulefy) - Transform GitHub repos into custom Cursor AI rules using Claude AI
+- [Codebase MCP](https://github.com/DeDeveloper23/codebase-mcp) - MCP server that uses Repomix for AI-powered codebase analysis
+- [vibe-tools](https://github.com/eastlondoner/vibe-tools) - CLI toolset for AI agents with web search, repo analysis, and browser automation
+
+For more details, visit our [Community Projects page](https://repomix.com/guide/community-projects).
 
 ## 🤝 Contribution
 

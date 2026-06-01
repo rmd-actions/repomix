@@ -55,6 +55,28 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
   --remote user/repo
 ```
 
+## Безопасность
+
+В целях безопасности конфигурационные файлы (`repomix.config.*`) из удалённых репозиториев по умолчанию не загружаются. Это предотвращает выполнение кода из ненадёжных репозиториев через конфигурационные файлы вроде `repomix.config.ts`.
+
+Ваша глобальная конфигурация и параметры CLI по-прежнему применяются.
+
+Чтобы доверять конфигурации удалённого репозитория:
+
+```bash
+# С помощью флага CLI
+repomix --remote user/repo --remote-trust-config
+
+# С помощью переменной окружения
+REPOMIX_REMOTE_TRUST_CONFIG=true repomix --remote user/repo
+```
+
+При использовании `--config` с `--remote` необходимо указать абсолютный путь:
+
+```bash
+repomix --remote user/repo --config /home/user/repomix.config.json
+```
+
 ## Типичные проблемы
 
 ### Проблемы с доступом
@@ -66,3 +88,10 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
 - Используйте `--include` для выбора конкретных путей
 - Включите `--remove-comments`
 - Обрабатывайте ветки по отдельности
+
+## Связанные ресурсы
+
+- [Параметры командной строки](/ru/guide/command-line-options) - Полная справка по CLI, включая опции `--remote`
+- [Конфигурация](/ru/guide/configuration) - Настройка опций по умолчанию для удалённой обработки
+- [Сжатие кода](/ru/guide/code-compress) - Уменьшение размера вывода для больших репозиториев
+- [Безопасность](/ru/guide/security) - Как Repomix обрабатывает обнаружение конфиденциальных данных

@@ -20,9 +20,11 @@ const createMockDeps = (overrides: {
   select: vi.fn().mockResolvedValue(overrides.selectValue),
   confirm: vi.fn().mockResolvedValue(overrides.confirmValue),
   isCancel: overrides.isCancelFn as (value: unknown) => value is symbol,
+  cancel: vi.fn(),
   access: overrides.accessRejects
     ? vi.fn().mockRejectedValue(new Error('ENOENT'))
     : vi.fn().mockResolvedValue(undefined),
+  rm: vi.fn().mockResolvedValue(undefined),
 });
 
 describe('skillPrompts', () => {
@@ -78,6 +80,7 @@ describe('skillPrompts', () => {
       const result = await promptSkillLocation('test-skill', '/test/project', mockDeps);
 
       expect(mockDeps.confirm).toHaveBeenCalledOnce();
+      expect(mockDeps.rm).toHaveBeenCalledOnce();
       expect(result.location).toBe('personal');
     });
 
@@ -91,6 +94,7 @@ describe('skillPrompts', () => {
       await expect(promptSkillLocation('test-skill', '/test/project', mockDeps)).rejects.toThrow(
         OperationCancelledError,
       );
+      expect(mockDeps.cancel).toHaveBeenCalledWith('Skill generation cancelled.');
     });
 
     test('should throw OperationCancelledError when overwrite is declined', async () => {
@@ -104,6 +108,7 @@ describe('skillPrompts', () => {
       await expect(promptSkillLocation('test-skill', '/test/project', mockDeps)).rejects.toThrow(
         OperationCancelledError,
       );
+      expect(mockDeps.cancel).toHaveBeenCalledWith('Skill generation cancelled.');
     });
 
     test('should throw OperationCancelledError when confirm is cancelled', async () => {
@@ -122,6 +127,7 @@ describe('skillPrompts', () => {
       await expect(promptSkillLocation('test-skill', '/test/project', mockDeps)).rejects.toThrow(
         OperationCancelledError,
       );
+      expect(mockDeps.cancel).toHaveBeenCalledWith('Skill generation cancelled.');
     });
   });
 

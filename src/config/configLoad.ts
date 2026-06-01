@@ -1,7 +1,6 @@
 import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { createJiti } from 'jiti';
 import JSON5 from 'json5';
 import pc from 'picocolors';
 import { RepomixError, rethrowValidationErrorIfZodError } from '../shared/errorHandle.js';
@@ -58,7 +57,10 @@ const findConfigFile = async (configPaths: string[], logPrefix: string): Promise
 };
 
 // Default jiti import implementation for loading JS/TS config files
+// Lazy-loads jiti to avoid importing its heavy TypeScript toolchain
+// when using JSON/JSON5 config files or default config (the common case)
 const defaultJitiImport = async (fileUrl: string): Promise<unknown> => {
+  const { createJiti } = await import('jiti');
   const jiti = createJiti(import.meta.url, {
     moduleCache: false, // Disable cache to ensure fresh config loads
     interopDefault: true, // Automatically use default export
@@ -69,12 +71,13 @@ const defaultJitiImport = async (fileUrl: string): Promise<unknown> => {
 export const loadFileConfig = async (
   rootDir: string,
   argConfigPath: string | null,
+  options: { skipLocalConfig?: boolean } = {},
   deps = {
     jitiImport: defaultJitiImport,
   },
 ): Promise<RepomixConfigFile> => {
   if (argConfigPath) {
-    // If a specific config path is provided, use it directly
+    // Explicit --config flag is always respected (user's intentional choice)
     const fullPath = path.resolve(rootDir, argConfigPath);
     logger.trace('Loading local config from:', fullPath);
 
@@ -91,7 +94,14 @@ export const loadFileConfig = async (
   const localConfigPath = await findConfigFile(localConfigPaths, 'local');
 
   if (localConfigPath) {
-    return await loadAndValidateConfig(localConfigPath, deps);
+    if (!options.skipLocalConfig) {
+      return await loadAndValidateConfig(localConfigPath, deps);
+    }
+    // Log when config files are skipped for security (remote mode)
+    logger.note(
+      `Skipping config file found in remote repository for security: ${path.basename(localConfigPath)}\n` +
+        'Use --remote-trust-config to trust and load it.',
+    );
   }
 
   // Try to find a global config file using the priority order
@@ -102,11 +112,13 @@ export const loadFileConfig = async (
     return await loadAndValidateConfig(globalConfigPath, deps);
   }
 
-  logger.log(
-    pc.dim(
-      `No custom config found at ${defaultConfigPaths.join(', ')} or global config at ${globalConfigPaths.join(', ')}.\nYou can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.`,
-    ),
-  );
+  if (!options.skipLocalConfig) {
+    logger.log(
+      pc.dim(
+        `No custom config found at ${defaultConfigPaths.join(', ')} or global config at ${globalConfigPaths.join(', ')}.\nYou can add a config file for additional settings. Please check https://github.com/yamadashy/repomix for more information.`,
+      ),
+    );
+  }
   return {};
 };
 

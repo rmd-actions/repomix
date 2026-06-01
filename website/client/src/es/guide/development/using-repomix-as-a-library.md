@@ -57,6 +57,9 @@ async function processRemoteRepo(repoUrl) {
 }
 ```
 
+> [!NOTE]
+> Por seguridad, los archivos de configuración de los repositorios remotos no se cargan de forma predeterminada. Para confiar en la configuración de un repositorio remoto, añade `remoteTrustConfig: true` a las opciones, o establece la variable de entorno `REPOMIX_REMOTE_TRUST_CONFIG=true`.
+
 ## Uso de Componentes Principales
 
 Para un mayor control, puedes usar las APIs de bajo nivel de Repomix directamente:
@@ -87,7 +90,6 @@ Al empaquetar repomix con herramientas como Rolldown o esbuild, algunas dependen
 
 **Dependencias externas (no se pueden empaquetar):**
 - `tinypool` - Genera hilos de trabajo usando rutas de archivos
-- `tiktoken` - Carga archivos WASM dinámicamente en tiempo de ejecución
 
 **Archivos WASM a copiar:**
 - `web-tree-sitter.wasm` → Mismo directorio que el JS empaquetado (requerido para la función de compresión de código)

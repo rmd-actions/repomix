@@ -7,6 +7,7 @@ import { createMockConfig } from '../../testing/testUtils.js';
 
 // Mock the TokenCounter
 vi.mock('../../../src/core/metrics/TokenCounter.js', () => ({
+  TOKEN_ENCODINGS: ['o200k_base', 'cl100k_base', 'p50k_base', 'p50k_edit', 'r50k_base'],
   TokenCounter: vi.fn(),
 }));
 
@@ -96,7 +97,7 @@ index 123..456 100644
 
     const result = await calculateMetrics(
       processedFiles,
-      output,
+      Promise.resolve(output),
       vi.fn(), // Progress callback
       config,
       {
@@ -179,7 +180,7 @@ index 123..456 100644
 
     const result = await calculateMetrics(
       processedFiles,
-      output,
+      Promise.resolve(output),
       vi.fn(), // Progress callback
       config,
       undefined, // No diff content
@@ -257,7 +258,7 @@ index 123..456 100644
 
     const result = await calculateMetrics(
       processedFiles,
-      output,
+      Promise.resolve(output),
       vi.fn(), // Progress callback
       config,
       undefined, // No diff content

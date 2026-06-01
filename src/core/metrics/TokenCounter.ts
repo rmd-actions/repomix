@@ -1,29 +1,67 @@
-import { get_encoding, type Tiktoken, type TiktokenEncoding } from 'tiktoken';
+import { GptEncoding } from 'gpt-tokenizer/GptEncoding';
+import { resolveEncodingAsync } from 'gpt-tokenizer/resolveEncodingAsync';
 import { logger } from '../../shared/logger.js';
 
+// Supported token encoding types (OpenAI encoding names)
+export const TOKEN_ENCODINGS = ['o200k_base', 'cl100k_base', 'p50k_base', 'p50k_edit', 'r50k_base'] as const;
+export type TokenEncoding = (typeof TOKEN_ENCODINGS)[number];
+
+interface CountTokensOptions {
+  disallowedSpecial?: Set<string>;
+}
+
+type CountTokensFn = (text: string, options?: CountTokensOptions) => number;
+
+// Treat all text as regular content by disallowing nothing,
+// so special tokens like <|endoftext|> are tokenized as ordinary text.
+const PLAIN_TEXT_OPTIONS: CountTokensOptions = { disallowedSpecial: new Set() };
+
+// Lazy-loaded countTokens functions keyed by encoding
+const encodingModules = new Map<string, CountTokensFn>();
+
+const loadEncoding = async (encodingName: TokenEncoding): Promise<CountTokensFn> => {
+  const cached = encodingModules.get(encodingName);
+  if (cached) {
+    return cached;
+  }
+
+  const startTime = process.hrtime.bigint();
+
+  // Use resolveEncodingAsync to lazily load BPE rank data, then create a GptEncoding instance.
+  // resolveEncodingAsync uses static import paths internally, so bundlers (rolldown) can resolve them.
+  const bpeRanks = await resolveEncodingAsync(encodingName);
+  const encoder = GptEncoding.getEncodingApi(encodingName, () => bpeRanks);
+  const countFn = encoder.countTokens.bind(encoder) as CountTokensFn;
+  encodingModules.set(encodingName, countFn);
+
+  const endTime = process.hrtime.bigint();
+  const initTime = Number(endTime - startTime) / 1e6;
+  logger.debug(`TokenCounter initialization for ${encodingName} took ${initTime.toFixed(2)}ms`);
+
+  return countFn;
+};
+
 export class TokenCounter {
-  private encoding: Tiktoken;
+  private countFn: CountTokensFn | null = null;
+  private readonly encodingName: TokenEncoding;
 
-  constructor(encodingName: TiktokenEncoding) {
-    const startTime = process.hrtime.bigint();
+  constructor(encodingName: TokenEncoding) {
+    this.encodingName = encodingName;
+  }
 
-    // Setup encoding with the specified model
-    this.encoding = get_encoding(encodingName);
-
-    const endTime = process.hrtime.bigint();
-    const initTime = Number(endTime - startTime) / 1e6; // Convert to milliseconds
-
-    logger.debug(`TokenCounter initialization took ${initTime.toFixed(2)}ms`);
+  async init(): Promise<void> {
+    this.countFn = await loadEncoding(this.encodingName);
   }
 
   public countTokens(content: string, filePath?: string): number {
+    if (!this.countFn) {
+      throw new Error('TokenCounter not initialized. Call init() first.');
+    }
+
     try {
-      // Disable special token validation to handle files that may contain
-      // special token sequences (e.g., tokenizer configs with <|endoftext|>).
-      // This treats special tokens as ordinary text rather than control tokens,
-      // which is appropriate for general code/text analysis where we're not
-      // actually sending the content to an LLM API.
-      return this.encoding.encode(content, [], []).length;
+      // Use PLAIN_TEXT_OPTIONS to treat all content as ordinary text,
+      // skipping gpt-tokenizer's default regex scan for special tokens.
+      return this.countFn(content, PLAIN_TEXT_OPTIONS);
     } catch (error) {
       let message = '';
       if (error instanceof Error) {
@@ -42,7 +80,6 @@ export class TokenCounter {
     }
   }
 
-  public free(): void {
-    this.encoding.free();
-  }
+  // No-op: gpt-tokenizer is pure JS, no WASM resources to free
+  public free(): void {}
 }

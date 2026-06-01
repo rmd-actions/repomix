@@ -52,10 +52,13 @@ async function processRemoteRepo(repoUrl) {
     output: 'output.xml',
     compress: true
   } as CliOptions;
-  
+
   return await runCli(['.'], process.cwd(), options);
 }
 ```
+
+> [!NOTE]
+> For security, config files in remote repositories are not loaded by default. To trust a remote repository's config, add `remoteTrustConfig: true` to the options, or set the `REPOMIX_REMOTE_TRUST_CONFIG=true` environment variable.
 
 ## Using Core Components
 
@@ -87,7 +90,6 @@ When bundling repomix with tools like Rolldown or esbuild, some dependencies mus
 
 **External dependencies (cannot be bundled):**
 - `tinypool` - Spawns worker threads using file paths
-- `tiktoken` - Loads WASM files dynamically at runtime
 
 **WASM files to copy:**
 - `web-tree-sitter.wasm` → Same directory as bundled JS (required for code compression feature)

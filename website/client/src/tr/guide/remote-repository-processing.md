@@ -55,6 +55,28 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
   --remote user/repo
 ```
 
+## Güvenlik
+
+Güvenlik nedeniyle, uzak depolardaki yapılandırma dosyaları (`repomix.config.*`) varsayılan olarak yüklenmez. Bu sayede güvenilmeyen depoların `repomix.config.ts` gibi yapılandırma dosyaları aracılığıyla kod çalıştırması engellenir.
+
+Global yapılandırmanız ve CLI seçenekleriniz yine de uygulanır.
+
+Uzak bir deponun yapılandırmasına güvenmek için:
+
+```bash
+# CLI bayrağı kullanarak
+repomix --remote user/repo --remote-trust-config
+
+# Ortam değişkeni kullanarak
+REPOMIX_REMOTE_TRUST_CONFIG=true repomix --remote user/repo
+```
+
+`--remote` ile `--config` kullanırken mutlak bir yol belirtilmelidir:
+
+```bash
+repomix --remote user/repo --config /home/user/repomix.config.json
+```
+
 ## Sık Karşılaşılan Sorunlar
 
 ### Erişim Sorunları
@@ -66,3 +88,10 @@ docker run -v ./output:/app -it --rm ghcr.io/yamadashy/repomix \
 - Belirli yolları seçmek için `--include` kullanın
 - `--remove-comments` seçeneğini etkinleştirin
 - Dalları ayrı ayrı işleyin
+
+## İlgili Kaynaklar
+
+- [Komut Satırı Seçenekleri](/tr/guide/command-line-options) - `--remote` seçenekleri dahil tam CLI referansı
+- [Yapılandırma](/tr/guide/configuration) - Uzak işleme için varsayılan seçenekleri ayarlayın
+- [Kod Sıkıştırma](/tr/guide/code-compress) - Büyük depolar için çıktı boyutunu azaltın
+- [Güvenlik](/tr/guide/security) - Repomix'in hassas veri tespitini nasıl ele aldığı
