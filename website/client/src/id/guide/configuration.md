@@ -1,3 +1,8 @@
+---
+title: Konfigurasi
+description: Konfigurasikan Repomix dengan file JSON, JSONC, JSON5, JavaScript, atau TypeScript, termasuk format output, pola include dan ignore, serta opsi lanjutan.
+---
+
 # Konfigurasi
 
 Repomix dapat dikonfigurasi menggunakan file konfigurasi atau opsi baris perintah. File konfigurasi memungkinkan Anda untuk menyesuaikan berbagai aspek cara pemrosesan dan output codebase Anda.
@@ -88,6 +93,7 @@ File konfigurasi JavaScript bekerja sama seperti TypeScript, mendukung `defineCo
 | `input.maxFileSize`              | Ukuran file maksimum dalam byte untuk diproses. File yang lebih besar akan dilewati. Berguna untuk mengecualikan file biner besar atau file data | `50000000`            |
 | `output.filePath`                | Nama file output. Mendukung format XML, Markdown, dan teks biasa                                                            | `"repomix-output.xml"` |
 | `output.style`                   | Gaya output (`xml`, `markdown`, `json`, `plain`). Setiap format memiliki keunggulan tersendiri untuk berbagai alat AI               | `"xml"`                |
+| `output.filePathStyle`           | Cara jalur file ditampilkan dalam output (`target-relative` menjaga jalur relatif terhadap setiap root target, `cwd-relative` menjaga jalur relatif terhadap direktori kerja saat ini) | `"target-relative"`    |
 | `output.parsableStyle`           | Apakah akan escape output berdasarkan skema gaya yang dipilih. Memungkinkan parsing yang lebih baik tetapi dapat meningkatkan jumlah token | `false`                |
 | `output.compress`                | Apakah akan melakukan ekstraksi kode cerdas menggunakan Tree-sitter untuk mengurangi jumlah token sambil mempertahankan struktur | `false`                |
 | `output.headerText`              | Teks kustom untuk disertakan dalam header file. Berguna untuk memberikan konteks atau instruksi untuk alat AI              | `null`                 |
@@ -101,6 +107,7 @@ File konfigurasi JavaScript bekerja sama seperti TypeScript, mendukung `defineCo
 | `output.truncateBase64`          | Apakah akan memotong string data base64 yang panjang (misalnya, gambar) untuk mengurangi jumlah token                      | `false`                |
 | `output.copyToClipboard`         | Apakah akan menyalin output ke clipboard sistem selain menyimpan file                                                       | `false`                |
 | `output.splitOutput`             | Membagi output menjadi beberapa file bernomor berdasarkan ukuran maksimum per bagian (mis., `1000000` untuk ~1MB). CLI menerima ukuran yang dapat dibaca seperti `500kb` atau `2mb`. Menjaga setiap file di bawah batas dan menghindari pemisahan file sumber antar bagian | Tidak diatur |
+| `output.tokenBudget`             | Gagal dengan kode keluar bukan nol saat output yang dikemas melebihi jumlah token ini. Berfungsi sebagai pengaman untuk batas konteks CI/agen; output tetap dihasilkan | Tidak diatur |
 | `output.topFilesLength`          | Jumlah file teratas untuk ditampilkan dalam ringkasan. Jika diset ke 0, tidak akan ada ringkasan yang ditampilkan         | `5`                    |
 | `output.includeEmptyDirectories` | Apakah akan menyertakan direktori kosong dalam struktur repository                                                          | `false`                |
 | `output.includeFullDirectoryStructure` | Saat menggunakan pola `include`, apakah akan menampilkan pohon direktori lengkap (sesuai dengan pola ignore) sambil tetap hanya memproses file yang disertakan. Menyediakan konteks repository lengkap untuk analisis AI | `false`                |
@@ -152,6 +159,7 @@ Berikut adalah contoh file konfigurasi lengkap (`repomix.config.json`):
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Informasi header kustom untuk file yang dikemas.",

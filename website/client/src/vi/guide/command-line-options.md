@@ -1,3 +1,8 @@
+---
+title: Tùy chọn Dòng lệnh
+description: Tham khảo mọi tùy chọn Repomix CLI cho input, output, chọn file, repository remote, cấu hình, bảo mật, đếm token, MCP và agent skills.
+---
+
 # Tùy chọn Dòng lệnh
 
 ## Tùy chọn Cơ bản
@@ -21,6 +26,7 @@
 |-----------|-------|
 | `-o, --output <file>` | Đường dẫn tệp đầu ra (mặc định: `repomix-output.xml`, sử dụng `"-"` cho stdout) |
 | `--style <style>` | Định dạng đầu ra: `xml`, `markdown`, `json`, hoặc `plain` (mặc định: `xml`) |
+| `--output-file-path-style <style>` | Cách hiển thị đường dẫn tệp trong đầu ra: `target-relative` hoặc `cwd-relative` (mặc định: `target-relative`) |
 | `--parsable-style` | Escape các ký tự đặc biệt để đảm bảo XML/Markdown hợp lệ (cần thiết khi đầu ra chứa mã phá vỡ định dạng) |
 | `--compress` | Trích xuất cấu trúc mã cần thiết (lớp, hàm, interface) sử dụng phân tích Tree-sitter |
 | `--output-show-line-numbers` | Thêm số dòng trước mỗi dòng trong đầu ra |
@@ -71,6 +77,7 @@
 
 ## Tùy chọn Số lượng Token
 - `--token-count-encoding <encoding>`: Mô hình tokenizer để đếm: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4), v.v. (mặc định: o200k_base)
+- `--token-budget <number>`: Thất bại với mã thoát khác không khi đầu ra đã đóng gói vượt quá N token. Hữu ích như một biện pháp bảo vệ trong các pipeline CI và quy trình agent để giữ đầu ra trong cửa sổ ngữ cảnh của mô hình mục tiêu. Đầu ra vẫn được tạo ra; chỉ có mã thoát báo hiệu tràn
 
 ## Tùy chọn MCP
 - `--mcp`: Chạy như máy chủ Model Context Protocol để tích hợp công cụ AI
@@ -80,8 +87,15 @@
 | Tùy chọn | Mô tả |
 |-----------|-------|
 | `--skill-generate [name]` | Tạo đầu ra định dạng Claude Agent Skills vào thư mục `.claude/skills/<name>/` (tên tự động tạo nếu bỏ qua) |
+| `--skill-project-name <name>` | Ghi đè tên dự án được sử dụng trong mô tả Skills được tạo |
 | `--skill-output <path>` | Chỉ định trực tiếp đường dẫn thư mục đầu ra skill (bỏ qua lời nhắc vị trí) |
 | `-f, --force` | Bỏ qua tất cả lời nhắc xác nhận (ví dụ: ghi đè thư mục skill) |
+
+## Tùy chọn Chế độ Theo dõi
+
+- `-w, --watch`: Theo dõi các thay đổi của tệp và tự động đóng gói lại. Các tệp mới, đã thay đổi và đã xóa được phát hiện, các thay đổi nhanh được debounce (300 ms), và một dấu thời gian được in ra sau mỗi lần xây dựng lại. Nhấn `Ctrl+C` để dừng.
+
+Chế độ theo dõi chỉ hoạt động với các thư mục cục bộ, vì vậy không thể kết hợp với `--remote`, một URL kho lưu trữ từ xa được truyền dưới dạng tham số vị trí, `--stdout`, `--stdin`, `--split-output`, `--skill-generate`, hoặc `--copy`. Các hạn chế này áp dụng dù tùy chọn được đặt trên dòng lệnh hay trong tệp cấu hình của bạn.
 
 ## Tài nguyên liên quan
 
@@ -120,6 +134,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # Kho lưu trữ từ xa với dạng viết tắt
 repomix --remote user/repo
 
+# Kho lưu trữ từ xa với dạng viết tắt (tự động phát hiện, không cần --remote)
+repomix user/repo
+
 # Danh sách tệp sử dụng stdin
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -134,5 +151,8 @@ repomix --include-diffs --include-logs  # Bao gồm cả diff và logs
 # Phân tích số lượng token
 repomix --token-count-tree
 repomix --token-count-tree 1000  # Chỉ hiển thị tệp/thư mục với 1000+ token
-```
 
+# Chế độ theo dõi: tự động đóng gói lại khi tệp thay đổi
+repomix --watch
+repomix -w --include "src/**/*.ts"
+```

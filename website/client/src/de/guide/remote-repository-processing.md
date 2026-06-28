@@ -1,3 +1,8 @@
+---
+title: "GitHub-Repository-Verarbeitung"
+description: "Packen Sie GitHub-Repositories mit Repomix über vollständige URLs, user/repo-Kurzform, Branches, Tags, Commits, Docker und Vertrauenskontrollen für Remote-Konfiguration."
+---
+
 # GitHub-Repository-Verarbeitung
 
 ## Grundlegende Verwendung
@@ -10,6 +15,14 @@ repomix --remote https://github.com/user/repo
 # Mit GitHub-Kurzform
 repomix --remote user/repo
 ```
+
+Sie können die `owner/repo`-Kurzform auch direkt ohne `--remote` übergeben:
+
+```bash
+repomix yamadashy/repomix
+```
+
+Da `owner/repo` auch wie ein relativer lokaler Pfad aussieht, behandelt Repomix das Argument nur dann als Remote-Repository, wenn keine lokale Datei bzw. kein Verzeichnis mit diesem Namen existiert und das Repository auf GitHub erreichbar ist. Ein vorhandener lokaler Pfad hat immer Vorrang; um einen Pfad in `owner/repo`-Form als lokal zu erzwingen, stellen Sie ihm `./` voran (zum Beispiel `repomix ./owner/repo`). Wenn das Argument dem Muster entspricht, das Repository aber nicht erreichbar ist (zum Beispiel ein privates Repository oder ein Tippfehler), behandelt Repomix es ersatzweise als lokalen Pfad.
 
 ## Branch- und Commit-Auswahl
 

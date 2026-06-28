@@ -93,6 +93,7 @@ JavaScript configuration files work the same as TypeScript, supporting `defineCo
 | `input.maxFileSize`              | Maximum file size in bytes to process. Files larger than this will be skipped. Useful for excluding large binary files or data files | `50000000`            |
 | `output.filePath`                | The name of the output file. Supports XML, Markdown, and plain text formats                                                   | `"repomix-output.xml"` |
 | `output.style`                   | The style of the output (`xml`, `markdown`, `json`, `plain`). Each format has its own advantages for different AI tools              | `"xml"`                |
+| `output.filePathStyle`           | How file paths are shown in output (`target-relative` keeps paths relative to each target root, `cwd-relative` keeps paths relative to the current working directory) | `"target-relative"`    |
 | `output.parsableStyle`           | Whether to escape the output based on the chosen style schema. Enables better parsing but may increase token count           | `false`                |
 | `output.compress`                | Whether to perform intelligent code extraction using Tree-sitter to reduce token count while preserving structure             | `false`                |
 | `output.headerText`              | Custom text to include in the file header. Useful for providing context or instructions for AI tools                         | `null`                 |
@@ -106,6 +107,7 @@ JavaScript configuration files work the same as TypeScript, supporting `defineCo
 | `output.truncateBase64`          | Whether to truncate long base64 data strings (e.g., images) to reduce token count                                            | `false`                |
 | `output.copyToClipboard`         | Whether to copy the output to system clipboard in addition to saving the file                                                | `false`                |
 | `output.splitOutput`             | Split output into multiple numbered files by maximum size per part (e.g., `1000000` for ~1MB). CLI accepts human-readable sizes like `500kb` or `2mb`. Keeps each file under the limit and avoids splitting files across parts | Not set                |
+| `output.tokenBudget`             | Fail with a non-zero exit code when the packed output exceeds this many tokens. Acts as a guard for CI/agent context limits; the output is still generated | Not set                |
 | `output.topFilesLength`          | Number of top files to display in the summary. If set to 0, no summary will be displayed                                     | `5`                    |
 | `output.includeEmptyDirectories` | Whether to include empty directories in the repository structure                                                             | `false`                |
 | `output.includeFullDirectoryStructure` | When using `include` patterns, whether to display the complete directory tree (respecting ignore patterns) while still processing only the included files. Provides full repository context for AI analysis | `false`                |
@@ -157,6 +159,7 @@ Here's an example of a complete configuration file (`repomix.config.json`):
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Custom header information for the packed file.",

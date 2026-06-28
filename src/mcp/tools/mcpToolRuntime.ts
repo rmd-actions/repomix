@@ -1,22 +1,36 @@
 import crypto from 'node:crypto';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { generateTreeString } from '../../core/file/fileTreeGenerate.js';
 import type { ProcessedFile } from '../../core/file/fileTypes.js';
+import { getRepomixTmpDir } from '../../shared/tmpDir.js';
+
+interface OutputFileEntry {
+  filePath: string;
+  // Whether the file was registered from an untrusted path (attach_packed_output).
+  // Such files must be secret-scanned each time their content is served, since the
+  // file is outside Repomix's own packing pipeline and may change after attach.
+  requiresSecretScan: boolean;
+}
 
 // Map to store generated output files
-const outputFileRegistry = new Map<string, string>();
+const outputFileRegistry = new Map<string, OutputFileEntry>();
 
 // Register an output file
-export const registerOutputFile = (id: string, filePath: string): void => {
-  outputFileRegistry.set(id, filePath);
+export const registerOutputFile = (id: string, filePath: string, requiresSecretScan = false): void => {
+  outputFileRegistry.set(id, { filePath, requiresSecretScan });
 };
 
 // Get file path from output ID
 export const getOutputFilePath = (id: string): string | undefined => {
-  return outputFileRegistry.get(id);
+  return outputFileRegistry.get(id)?.filePath;
+};
+
+// Whether the output file was registered from an untrusted attach path and must
+// be secret-scanned before its content is served.
+export const requiresSecretScan = (id: string): boolean => {
+  return outputFileRegistry.get(id)?.requiresSecretScan ?? false;
 };
 
 export interface McpToolMetrics {
@@ -48,7 +62,7 @@ type McpToolStructuredContent = (BaseMcpToolResponse & Record<string, unknown>) 
  */
 export const createToolWorkspace = async (): Promise<string> => {
   try {
-    const tmpBaseDir = path.join(os.tmpdir(), 'repomix', 'mcp-outputs');
+    const tmpBaseDir = path.join(getRepomixTmpDir(), 'mcp-outputs');
     await fs.mkdir(tmpBaseDir, { recursive: true });
     const tempDir = await fs.mkdtemp(`${tmpBaseDir}/`);
     return tempDir;
@@ -73,10 +87,11 @@ export const formatPackToolResponse = async (
   metrics: McpToolMetrics,
   outputFilePath: string,
   topFilesLen = 5,
+  requiresSecretScan = false,
 ): Promise<CallToolResult> => {
   // Generate output ID and register the file
   const outputId = generateOutputId();
-  registerOutputFile(outputId, outputFilePath);
+  registerOutputFile(outputId, outputFilePath, requiresSecretScan);
 
   // Calculate total lines from the output file
   const outputContent = await fs.readFile(outputFilePath, 'utf8');

@@ -1,3 +1,8 @@
+---
+title: 設定
+description: 使用 JSON、JSONC、JSON5、JavaScript 或 TypeScript 檔案設定 Repomix，包括輸出格式、包含與忽略模式以及進階選項。
+---
+
 # 設定
 
 Repomix可以透過設定檔或命令列選項進行設定。設定檔允許您自訂程式碼庫的處理和輸出方式。
@@ -88,6 +93,7 @@ JavaScript設定檔的工作方式與TypeScript相同，支援`defineConfig`和�
 | `input.maxFileSize`              | 要處理的最大檔案大小（位元組）。超過此大小的檔案將被跳過。用於排除大型二進位檔案或資料檔案                                | `50000000`            |
 | `output.filePath`                | 輸出檔案名。支援XML、Markdown和純文字格式                                                                                   | `"repomix-output.xml"` |
 | `output.style`                   | 輸出樣式（`xml`、`markdown`、`json`、`plain`）。每種格式對不同的AI工具都有其優勢                                                   | `"xml"`                |
+| `output.filePathStyle`           | 輸出中顯示檔案路徑的方式（`target-relative` 表示路徑相對於每個目標根目錄，`cwd-relative` 表示路徑相對於目前工作目錄）              | `"target-relative"`    |
 | `output.parsableStyle`           | 是否根據所選樣式模式轉義輸出。可以提供更好的解析，但可能會增加令牌數量                                                    | `false`                |
 | `output.compress`                | 是否使用Tree-sitter執行智慧程式碼提取，在保持結構的同時減少令牌數量                                                       | `false`                |
 | `output.headerText`              | 要包含在檔案頭部的自訂文字。對於為AI工具提供上下文或指令很有用                                                            | `null`                 |
@@ -101,6 +107,7 @@ JavaScript設定檔的工作方式與TypeScript相同，支援`defineConfig`和�
 | `output.truncateBase64`          | 是否截斷長的base64數據字符串（例如圖像）以減少令牌數量                                                                      | `false`                |
 | `output.copyToClipboard`         | 是否除了儲存檔案外還將輸出複製到系統剪貼簿                                                                                 | `false`                |
 | `output.splitOutput`             | 按每部分最大大小將輸出拆分為多個編號檔案（例如，`1000000` 表示約1MB）。CLI 接受可讀大小如 `500kb` 或 `2mb`。使每個檔案保持在限制以下，並避免跨部分拆分來源檔案 | 未設定 |
+| `output.tokenBudget`             | 當打包輸出超過此權杖數量時以非零退出碼失敗。作為 CI/agent 上下文限制的防護；輸出仍會產生 | 未設定 |
 | `output.topFilesLength`          | 在摘要中顯示的頂部檔案數量。如果設定為0，則不顯示摘要                                                                      | `5`                    |
 | `output.includeEmptyDirectories` | 是否在儲存庫結構中包含空目錄                                                                                               | `false`                |
 | `output.includeFullDirectoryStructure` | 使用`include`模式時，是否顯示完整的目錄樹（遵守ignore模式）同時僅處理包含的檔案。為AI分析提供完整的儲存庫上下文 | `false`                |
@@ -152,6 +159,7 @@ JavaScript設定檔的工作方式與TypeScript相同，支援`defineConfig`和�
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "打包檔案的自訂頭部資訊",

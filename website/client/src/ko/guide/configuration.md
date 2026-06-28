@@ -1,3 +1,8 @@
+---
+title: 설정
+description: "JSON, JSONC, JSON5, JavaScript, TypeScript 파일로 출력 형식, 포함 및 무시 패턴, 고급 옵션을 포함한 Repomix 설정 방법을 설명합니다."
+---
+
 # 설정
 
 Repomix는 설정 파일 또는 명령줄 옵션을 사용하여 설정할 수 있습니다. 설정 파일을 사용하면 코드베이스의 처리 및 출력 방식을 사용자 정의할 수 있습니다.
@@ -88,6 +93,7 @@ JavaScript 설정 파일은 TypeScript와 동일하게 작동하며 `defineConfi
 | `input.maxFileSize`              | 처리할 최대 파일 크기(바이트). 이 크기를 초과하는 파일은 건너뜁니다. 큰 바이너리 파일이나 데이터 파일을 제외하는 데 유용합니다 | `50000000`            |
 | `output.filePath`                | 출력 파일 이름. XML, Markdown, 일반 텍스트 형식을 지원합니다                                                                | `"repomix-output.xml"` |
 | `output.style`                   | 출력 스타일(`xml`, `markdown`, `json`, `plain`). 각 형식은 다른 AI 도구에 대해 서로 다른 장점이 있습니다                          | `"xml"`                |
+| `output.filePathStyle`           | 출력에 파일 경로를 표시하는 방식 (`target-relative`는 각 대상 루트에 대한 상대 경로를 유지하고, `cwd-relative`는 현재 작업 디렉토리에 대한 상대 경로를 유지합니다) | `"target-relative"`    |
 | `output.parsableStyle`           | 선택한 스타일 스키마에 따라 출력을 이스케이프할지 여부. 더 나은 구문 분석이 가능하지만 토큰 수가 증가할 수 있습니다      | `false`                |
 | `output.compress`                | Tree-sitter를 사용하여 구조를 유지하면서 토큰 수를 줄이기 위해 지능적인 코드 추출을 수행할지 여부                         | `false`                |
 | `output.headerText`              | 파일 헤더에 포함할 사용자 정의 텍스트. AI 도구에 컨텍스트나 지침을 제공하는 데 유용합니다                                | `null`                 |
@@ -101,6 +107,7 @@ JavaScript 설정 파일은 TypeScript와 동일하게 작동하며 `defineConfi
 | `output.truncateBase64`          | 토큰 수를 줄이기 위해 긴 base64 데이터 문자열(예: 이미지)을 자를지 여부                                                  | `false`                |
 | `output.copyToClipboard`         | 파일 저장 외에도 출력을 시스템 클립보드에 복사할지 여부                                                                    | `false`                |
 | `output.splitOutput`             | 파트당 최대 크기로 출력을 여러 번호가 매겨진 파일로 분할합니다 (예: ~1MB의 경우 `1000000`). CLI는 `500kb` 또는 `2mb`와 같이 읽기 쉬운 크기를 허용합니다. 각 파일이 제한 이하로 유지되고 단일 소스 파일이 파트 간에 분할되는 것을 방지합니다 | 미설정 |
+| `output.tokenBudget`             | 패키징된 출력이 이 토큰 수를 초과하면 0이 아닌 종료 코드로 실패합니다. CI/에이전트 컨텍스트 제한에 대한 가드 역할을 합니다. 출력은 여전히 생성됩니다 | 미설정 |
 | `output.topFilesLength`          | 요약에 표시할 상위 파일 수. 0으로 설정하면 요약이 표시되지 않습니다                                                        | `5`                    |
 | `output.includeEmptyDirectories` | 저장소 구조에 빈 디렉토리를 포함할지 여부                                                                                  | `false`                |
 | `output.includeFullDirectoryStructure` | `include` 패턴 사용 시, 포함된 파일만 처리하면서 완전한 디렉토리 트리(무시 패턴 준수)를 표시할지 여부. AI 분석을 위한 전체 저장소 컨텍스트 제공 | `false`                |
@@ -152,6 +159,7 @@ JavaScript 설정 파일은 TypeScript와 동일하게 작동하며 `defineConfi
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "패키지된 파일의 사용자 정의 헤더 정보",

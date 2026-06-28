@@ -1,3 +1,8 @@
+---
+title: "Configuração"
+description: "Configure o Repomix com arquivos JSON, JSONC, JSON5, JavaScript ou TypeScript, incluindo formatos de saída, padrões de inclusão e ignorados e opções avançadas."
+---
+
 # Configuração
 
 O Repomix pode ser configurado usando um arquivo de configuração ou opções de linha de comando. O arquivo de configuração permite que você personalize vários aspectos de como seu código-fonte é processado e gerado.
@@ -88,6 +93,7 @@ Os arquivos de configuração JavaScript funcionam da mesma forma que TypeScript
 | `input.maxFileSize`              | Tamanho máximo do arquivo em bytes para processar. Arquivos maiores serão ignorados. Útil para excluir arquivos binários grandes ou arquivos de dados | `50000000`            |
 | `output.filePath`                | Nome do arquivo de saída. Suporta formatos XML, Markdown e texto simples                                                   | `"repomix-output.xml"` |
 | `output.style`                   | Estilo de saída (`xml`, `markdown`, `json`, `plain`). Cada formato tem suas próprias vantagens para diferentes ferramentas de IA   | `"xml"`                |
+| `output.filePathStyle`           | Como os caminhos de arquivo são exibidos na saída (`target-relative` mantém os caminhos relativos à raiz de cada destino, `cwd-relative` mantém os caminhos relativos ao diretório de trabalho atual) | `"target-relative"`    |
 | `output.parsableStyle`           | Indica se a saída deve ser escapada de acordo com o esquema de estilo escolhido. Permite melhor análise mas pode aumentar a contagem de tokens | `false`                |
 | `output.compress`                | Indica se deve realizar extração inteligente de código usando Tree-sitter para reduzir a contagem de tokens enquanto preserva a estrutura | `false`                |
 | `output.headerText`              | Texto personalizado para incluir no cabeçalho do arquivo. Útil para fornecer contexto ou instruções para ferramentas de IA | `null`                 |
@@ -101,6 +107,7 @@ Os arquivos de configuração JavaScript funcionam da mesma forma que TypeScript
 | `output.truncateBase64`          | Indica se deve truncar strings de dados base64 longas (por exemplo, imagens) para reduzir a contagem de tokens           | `false`                |
 | `output.copyToClipboard`         | Indica se deve copiar a saída para a área de transferência do sistema além de salvar o arquivo                           | `false`                |
 | `output.splitOutput`             | Dividir saída em múltiplos arquivos numerados por tamanho máximo por parte (ex., `1000000` para ~1MB). CLI aceita tamanhos legíveis como `500kb` ou `2mb`. Mantém cada arquivo abaixo do limite e evita dividir arquivos de origem entre as partes | Não definido |
+| `output.tokenBudget`             | Falhar com código de saída diferente de zero quando a saída empacotada exceder esta quantidade de tokens. Atua como proteção para limites de contexto de CI/agentes; a saída ainda é gerada | Não definido |
 | `output.topFilesLength`          | Número de arquivos principais para exibir no resumo. Se definido como 0, nenhum resumo será exibido                      | `5`                    |
 | `output.includeEmptyDirectories` | Indica se deve incluir diretórios vazios na estrutura do repositório                                                     | `false`                |
 | `output.includeFullDirectoryStructure` | Ao usar padrões `include`, indica se deve exibir a árvore de diretórios completa (respeitando os padrões ignore) enquanto processa apenas os arquivos incluídos. Fornece contexto completo do repositório para análise de IA | `false`                |
@@ -152,6 +159,7 @@ Aqui está um exemplo de um arquivo de configuração completo (`repomix.config.
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Informações de cabeçalho personalizadas para o arquivo empacotado.",

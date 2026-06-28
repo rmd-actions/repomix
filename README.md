@@ -9,6 +9,17 @@
 ### [Warp, built for coding with multiple AI agents](https://go.warp.dev/repomix)
 [Available for MacOS, Linux, & Windows](https://go.warp.dev/repomix)<br>
 
+   <br>
+   <a href="https://coderabbit.link/repomix">
+      <picture>
+         <source media="(prefers-color-scheme: dark)" srcset="website/client/src/public/images/sponsors/coderabbit/dark.png">
+         <img alt="CodeRabbit sponsorship" width="400" src="website/client/src/public/images/sponsors/coderabbit/light.png">
+      </picture>
+   </a>
+
+### [CodeRabbit | AI Code Reviews](https://coderabbit.link/repomix)
+[Cut code review time & bugs in half, instantly.](https://coderabbit.link/repomix)<br>
+
 
 </div>
 
@@ -41,6 +52,7 @@
 [![npm](https://img.shields.io/npm/d18m/repomix)](https://www.npmjs.com/package/repomix)
 [![Actions Status](https://github.com/yamadashy/repomix/actions/workflows/ci.yml/badge.svg)](https://github.com/yamadashy/repomix/actions?query=workflow%3A"ci")
 [![codecov](https://codecov.io/github/yamadashy/repomix/graph/badge.svg?token=PYQHDJ5SHX)](https://codecov.io/github/yamadashy/repomix)
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/yamadashy/repomix?utm_source=oss&utm_medium=github&utm_campaign=yamadashy%2Frepomix&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
 [![Sponsors](https://img.shields.io/github/sponsors/yamadashy?logo=github)](https://github.com/sponsors/yamadashy)
 [![Discord](https://badgen.net/discord/online-members/wNYzTwZFku?icon=discord&label=discord)](https://discord.gg/wNYzTwZFku)
 
@@ -614,6 +626,7 @@ Instruction
 |--------|-------------|
 | `-o, --output <file>` | Output file path (default: `repomix-output.xml`, use `"-"` for stdout) |
 | `--style <style>` | Output format: `xml`, `markdown`, `json`, or `plain` (default: `xml`) |
+| `--output-file-path-style <style>` | How file paths are shown in output: `target-relative` or `cwd-relative` (default: `target-relative`) |
 | `--parsable-style` | Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting) |
 | `--compress` | Extract essential code structure (classes, functions, interfaces) using Tree-sitter parsing |
 | `--output-show-line-numbers` | Prefix each line with its line number in the output |
@@ -664,6 +677,7 @@ Instruction
 
 #### Token Count Options
 - `--token-count-encoding <encoding>`: Tokenizer model for counting: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4), etc. (default: o200k_base)
+- `--token-budget <number>`: Fail with a non-zero exit code when the packed output exceeds N tokens. Useful as a guard in CI pipelines and agent workflows to keep output within a target model's context window. The output is still generated; only the exit code signals the overflow.
 
 #### MCP
 - `--mcp`: Run as Model Context Protocol server for AI tool integration
@@ -673,8 +687,14 @@ Instruction
 | Option | Description |
 |--------|-------------|
 | `--skill-generate [name]` | Generate Claude Agent Skills format output to `.claude/skills/<name>/` directory (name auto-generated if omitted) |
+| `--skill-project-name <name>` | Override the project name used in generated Skills descriptions |
 | `--skill-output <path>` | Specify skill output directory path directly (skips location prompt) |
 | `-f, --force` | Skip all confirmation prompts (e.g., skill directory overwrite) |
+
+#### Watch Mode
+- `-w, --watch`: Watch for file changes and automatically re-pack. Debounces rapid changes (300ms) and logs a timestamp on each rebuild. Stop with `Ctrl+C`.
+
+  Watch mode only works with local directories, so it cannot be combined with `--remote`, a positional remote repository URL, `--stdout`, `--stdin`, `--split-output`, `--skill-generate`, or `--copy` (whether set on the command line or in your config file).
 
 #### Examples
 
@@ -708,6 +728,10 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 
 # Remote repository with shorthand
 repomix --remote user/repo
+
+# Watch mode — automatically re-pack on file changes
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 
 ### Updating Repomix
@@ -1156,6 +1180,9 @@ repomix --skill-generate
 # Generate with custom Skills name
 repomix --skill-generate my-project-reference
 
+# Generate with a custom project name in Skills descriptions
+repomix --skill-generate --skill-project-name "My Project"
+
 # Generate from remote repository
 repomix --remote https://github.com/user/repo --skill-generate
 ```
@@ -1233,11 +1260,31 @@ Repomix provides a ready-to-use **Repomix Explorer** skill that enables AI codin
 
 #### Quick Install
 
-```bash
-npx add-skill yamadashy/repomix --skill repomix-explorer
+For Claude Code, install the official Repomix Explorer plugin:
+
+```text
+/plugin marketplace add yamadashy/repomix
+/plugin install repomix-explorer@repomix
 ```
 
-This command installs the skill to your AI assistant's skills directory (e.g., `.claude/skills/`), making it immediately available.
+For Codex, Cursor, OpenClaw, and other Agent Skills-compatible assistants, install the standalone skill with the Skills CLI:
+
+```bash
+npx skills add yamadashy/repomix --skill repomix-explorer
+```
+
+To target a specific assistant, pass `--agent`:
+
+```bash
+npx skills add yamadashy/repomix --skill repomix-explorer --agent codex
+npx skills add yamadashy/repomix --skill repomix-explorer --agent openclaw
+```
+
+For Hermes Agent, install the single-file skill with Hermes Agent's native skills command:
+
+```bash
+hermes skills install https://raw.githubusercontent.com/yamadashy/repomix/main/skills/repomix-explorer/SKILL.md
+```
 
 #### What It Does
 
@@ -1346,6 +1393,7 @@ Here's an explanation of the configuration options:
 | `input.maxFileSize`              | Maximum file size in bytes to process. Files larger than this will be skipped                                                | `50000000`            |
 | `output.filePath`                | The name of the output file                                                                                                  | `"repomix-output.xml"` |
 | `output.style`                   | The style of the output (`xml`, `markdown`, `json`, `plain`)                                                                 | `"xml"`                |
+| `output.filePathStyle`           | How file paths are shown in output (`target-relative` keeps paths relative to each target root, `cwd-relative` keeps paths relative to the current working directory) | `"target-relative"`    |
 | `output.parsableStyle`           | Whether to escape the output based on the chosen style schema. Note that this can increase token count.                      | `false`                |
 | `output.compress`                | Whether to perform intelligent code extraction to reduce token count                                                         | `false`                |
 | `output.headerText`              | Custom text to include in the file header                                                                                    | `null`                 |
@@ -1361,6 +1409,7 @@ Here's an explanation of the configuration options:
 | `output.splitOutput`             | Split output into multiple numbered files by maximum size per part (e.g., `1000000` for ~1MB). Keeps each file under the limit and avoids splitting files across parts | Not set                |
 | `output.topFilesLength`          | Number of top files to display in the summary. If set to 0, no summary will be displayed                                     | `5`                    |
 | `output.tokenCountTree`          | Whether to display file tree with token count summaries. Can be boolean or number (minimum token count threshold)           | `false`                |
+| `output.tokenBudget`             | Fail with a non-zero exit code when the packed output exceeds this many tokens. Acts as a guard for CI/agent context limits; the output is still generated | Not set                |
 | `output.includeEmptyDirectories` | Whether to include empty directories in the repository structure                                                             | `false`                |
 | `output.includeFullDirectoryStructure` | When using `include` patterns, whether to display the complete directory tree (respecting ignore patterns) while still processing only the included files. Provides full repository context for AI analysis | `false`                |
 | `output.git.sortByChanges`       | Whether to sort files by git change count (files with more changes appear at the bottom)                                     | `true`                 |
@@ -1411,6 +1460,7 @@ Example configuration:
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Custom header information for the packed file.",
@@ -1421,10 +1471,11 @@ Example configuration:
     "removeEmptyLines": false,
     "topFilesLength": 5,
     "tokenCountTree": false, // or true, or a number like 10 for minimum token threshold
+    // "tokenBudget": 180000, // optional: fail when the packed output exceeds this many tokens
     "showLineNumbers": false,
     "truncateBase64": false,
     "copyToClipboard": false,
-    "splitOutput": null, // or a number like 1000000 for ~1MB per file
+    // "splitOutput": 1000000, // optional: split output into multiple ~1MB files
     "includeEmptyDirectories": false,
     "git": {
       "sortByChanges": true,

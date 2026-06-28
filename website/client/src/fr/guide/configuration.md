@@ -1,3 +1,8 @@
+---
+title: "Configuration"
+description: "Configurez Repomix avec des fichiers JSON, JSONC, JSON5, JavaScript ou TypeScript, y compris les formats de sortie, motifs include et ignore, et options avancées."
+---
+
 # Configuration
 
 Repomix peut être configuré à l'aide d'un fichier de configuration ou d'options en ligne de commande. Le fichier de configuration vous permet de personnaliser divers aspects du traitement et de la sortie de votre base de code.
@@ -88,6 +93,7 @@ Les fichiers de configuration JavaScript fonctionnent de la même manière que T
 | `input.maxFileSize`              | Taille maximale des fichiers à traiter en octets. Les fichiers plus grands seront ignorés. Utile pour exclure les fichiers binaires volumineux ou les fichiers de données | `50000000`            |
 | `output.filePath`                | Nom du fichier de sortie. Prend en charge les formats XML, Markdown et texte brut                                            | `"repomix-output.xml"` |
 | `output.style`                   | Style de sortie (`xml`, `markdown`, `json`, `plain`). Chaque format a ses propres avantages pour différents outils d'IA              | `"xml"`                |
+| `output.filePathStyle`           | Façon dont les chemins de fichiers sont affichés dans la sortie (`target-relative` conserve les chemins relatifs à chaque racine cible, `cwd-relative` conserve les chemins relatifs au répertoire de travail courant) | `"target-relative"`    |
 | `output.parsableStyle`           | Indique s'il faut échapper la sortie selon le schéma de style choisi. Permet une meilleure analyse mais peut augmenter le nombre de tokens | `false`                |
 | `output.compress`                | Indique s'il faut effectuer une extraction intelligente du code à l'aide de Tree-sitter pour réduire le nombre de tokens tout en préservant la structure | `false`                |
 | `output.headerText`              | Texte personnalisé à inclure dans l'en-tête du fichier. Utile pour fournir du contexte ou des instructions aux outils d'IA   | `null`                 |
@@ -101,6 +107,7 @@ Les fichiers de configuration JavaScript fonctionnent de la même manière que T
 | `output.truncateBase64`          | Indique s'il faut tronquer les chaînes de données base64 longues (par exemple, les images) pour réduire le nombre de tokens | `false`                |
 | `output.copyToClipboard`         | Indique s'il faut copier la sortie dans le presse-papiers système en plus de sauvegarder le fichier                         | `false`                |
 | `output.splitOutput`             | Diviser la sortie en plusieurs fichiers numérotés par taille maximale par partie (ex., `1000000` pour ~1Mo). CLI accepte des tailles lisibles comme `500kb` ou `2mb`. Maintient chaque fichier sous la limite et évite de diviser les fichiers sources entre les parties | Non défini |
+| `output.tokenBudget`             | Échouer avec un code de sortie non nul lorsque la sortie empaquetée dépasse ce nombre de jetons. Agit comme un garde-fou pour les limites de contexte CI/agent ; la sortie est tout de même générée | Non défini |
 | `output.topFilesLength`          | Nombre de fichiers principaux à afficher dans le résumé. Si défini à 0, aucun résumé ne sera affiché                        | `5`                    |
 | `output.includeEmptyDirectories` | Indique s'il faut inclure les répertoires vides dans la structure du dépôt                                                   | `false`                |
 | `output.includeFullDirectoryStructure` | Lors de l'utilisation de motifs `include`, indique s'il faut afficher l'arbre de répertoires complet (en respectant les motifs ignore) tout en ne traitant que les fichiers inclus. Fournit un contexte complet du dépôt pour l'analyse IA | `false`                |
@@ -152,6 +159,7 @@ Voici un exemple de fichier de configuration complet (`repomix.config.json`) :
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Informations d'en-tête personnalisées pour le fichier compressé.",

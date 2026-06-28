@@ -1,3 +1,8 @@
+---
+title: "Konfiguration"
+description: "Konfigurieren Sie Repomix mit JSON-, JSONC-, JSON5-, JavaScript- oder TypeScript-Dateien, einschließlich Ausgabeformaten, Include- und Ignore-Mustern sowie erweiterten Optionen."
+---
+
 # Konfiguration
 
 Repomix kann über eine Konfigurationsdatei oder Kommandozeilenoptionen konfiguriert werden. Die Konfigurationsdatei ermöglicht es Ihnen, die Verarbeitung und Ausgabe Ihres Codes anzupassen.
@@ -88,6 +93,7 @@ JavaScript-Konfigurationsdateien funktionieren genauso wie TypeScript und unters
 | `input.maxFileSize`              | Maximale zu verarbeitende Dateigröße in Bytes. Größere Dateien werden übersprungen. Nützlich zum Ausschließen großer Binär- oder Datendateien | `50000000`            |
 | `output.filePath`                | Name der Ausgabedatei. Unterstützt XML-, Markdown- und Textformate                                                         | `"repomix-output.xml"` |
 | `output.style`                   | Ausgabestil (`xml`, `markdown`, `json`, `plain`). Jedes Format hat seine Vorteile für verschiedene KI-Tools                       | `"xml"`                |
+| `output.filePathStyle`           | Darstellung der Dateipfade in der Ausgabe (`target-relative` hält Pfade relativ zum jeweiligen Zielverzeichnis, `cwd-relative` hält Pfade relativ zum aktuellen Arbeitsverzeichnis) | `"target-relative"`    |
 | `output.parsableStyle`           | Ob die Ausgabe gemäß dem gewählten Stilschema escaped werden soll. Ermöglicht besseres Parsing, kann aber die Token-Anzahl erhöhen | `false`                |
 | `output.compress`                | Ob Tree-sitter verwendet werden soll, um intelligente Codeextraktion durchzuführen und dabei die Struktur beizubehalten, während die Token-Anzahl reduziert wird | `false`                |
 | `output.headerText`              | Benutzerdefinierter Text für den Dateikopf. Nützlich für die Bereitstellung von Kontext oder Anweisungen für KI-Tools    | `null`                 |
@@ -101,6 +107,7 @@ JavaScript-Konfigurationsdateien funktionieren genauso wie TypeScript und unters
 | `output.truncateBase64`          | Ob lange base64-Datenstrings (z.B. Bilder) abgeschnitten werden sollen, um die Token-Anzahl zu reduzieren               | `false`                |
 | `output.copyToClipboard`         | Ob die Ausgabe zusätzlich zum Speichern in die Zwischenablage kopiert werden soll                                        | `false`                |
 | `output.splitOutput`             | Ausgabe in mehrere nummerierte Dateien nach maximaler Größe pro Teil aufteilen (z.B. `1000000` für ~1MB). CLI akzeptiert lesbare Größen wie `500kb` oder `2mb`. Hält jede Datei unter dem Limit und verhindert, dass Quelldateien auf mehrere Ausgabedateien aufgeteilt werden | Nicht gesetzt |
+| `output.tokenBudget`             | Mit einem von Null verschiedenen Exit-Code fehlschlagen, wenn die gepackte Ausgabe diese Anzahl an Token überschreitet. Dient als Schutz für CI-/Agent-Kontextgrenzen; die Ausgabe wird trotzdem generiert | Nicht gesetzt |
 | `output.topFilesLength`          | Anzahl der in der Zusammenfassung anzuzeigenden Top-Dateien. Bei 0 wird keine Zusammenfassung angezeigt                  | `5`                    |
 | `output.includeEmptyDirectories` | Ob leere Verzeichnisse in der Repository-Struktur enthalten sein sollen                                                   | `false`                |
 | `output.includeFullDirectoryStructure` | Bei Verwendung von `include`-Mustern, ob der vollständige Verzeichnisbaum (unter Beachtung von Ignorier-Mustern) angezeigt werden soll, während nur die inkludierten Dateien verarbeitet werden. Bietet vollständigen Repository-Kontext für die KI-Analyse | `false`                |
@@ -152,6 +159,7 @@ Hier ist ein Beispiel einer vollständigen Konfigurationsdatei (`repomix.config.
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Benutzerdefinierte Header-Informationen für die gepackte Datei",

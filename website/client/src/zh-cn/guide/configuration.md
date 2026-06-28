@@ -1,3 +1,8 @@
+---
+title: 配置
+description: 使用 JSON、JSONC、JSON5、JavaScript 或 TypeScript 文件配置 Repomix，包括输出格式、包含和忽略模式以及高级选项。
+---
+
 # 配置
 
 Repomix 可以通过配置文件或命令行选项进行配置。配置文件允许你自定义代码库的处理和输出方式。
@@ -88,6 +93,7 @@ JavaScript 配置文件的工作方式与 TypeScript 相同，支持 `defineConf
 | `input.maxFileSize`              | 要处理的最大文件大小（字节）。超过此大小的文件将被跳过。用于排除大型二进制文件或数据文件                                  | `50000000`            |
 | `output.filePath`                | 输出文件名。支持 XML、Markdown 和纯文本格式                                                                                   | `"repomix-output.xml"` |
 | `output.style`                   | 输出样式（`xml`、`markdown`、`json`、`plain`）。每种格式对不同的 AI 工具都有其优势                                                   | `"xml"`                |
+| `output.filePathStyle`           | 输出中文件路径的显示方式（`target-relative` 表示路径相对于各目标根目录，`cwd-relative` 表示路径相对于当前工作目录）                  | `"target-relative"`    |
 | `output.parsableStyle`           | 是否根据所选样式模式转义输出。可以提供更好的解析，但可能会增加 token 数量                                                    | `false`                |
 | `output.compress`                | 是否使用 Tree-sitter 执行智能代码提取，在保持结构的同时减少 token 数量                                                         | `false`                |
 | `output.headerText`              | 要包含在文件头部的自定义文本。对于为 AI 工具提供上下文或指令很有用                                                          | `null`                 |
@@ -101,6 +107,7 @@ JavaScript 配置文件的工作方式与 TypeScript 相同，支持 `defineConf
 | `output.truncateBase64`          | 是否截断长的 base64 数据字符串（例如图像）以减少 token 数量                                                                      | `false`                |
 | `output.copyToClipboard`         | 是否除了保存文件外还将输出复制到系统剪贴板                                                                                 | `false`                |
 | `output.splitOutput`             | 按每部分最大大小将输出拆分为多个编号文件（例如，`1000000` 表示约 1MB）。CLI 接受可读大小如 `500kb` 或 `2mb`。使每个文件保持在限制以下，并避免跨部分拆分源文件 | 未设置 |
+| `output.tokenBudget`             | 当打包输出超过此 token 数量时以非零退出码失败。作为 CI/agent 上下文限制的防护；输出仍会生成 | 未设置 |
 | `output.topFilesLength`          | 在摘要中显示的顶部文件数量。如果设置为 0，则不显示摘要                                                                      | `5`                    |
 | `output.includeEmptyDirectories` | 是否在仓库结构中包含空目录                                                                                                 | `false`                |
 | `output.includeFullDirectoryStructure` | 使用 `include` 模式时，是否显示完整的目录树（遵守 ignore 模式）同时仅处理包含的文件。为 AI 分析提供完整的仓库上下文 | `false`                |
@@ -152,6 +159,7 @@ JavaScript 配置文件的工作方式与 TypeScript 相同，支持 `defineConf
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "打包文件的自定义头部信息",

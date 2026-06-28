@@ -1,3 +1,8 @@
+---
+title: Cấu hình
+description: Cấu hình Repomix bằng file JSON, JSONC, JSON5, JavaScript hoặc TypeScript, bao gồm output format, include và ignore pattern cùng các tùy chọn nâng cao.
+---
+
 # Cấu hình
 
 Repomix có thể được cấu hình bằng file cấu hình hoặc các tùy chọn dòng lệnh. File cấu hình cho phép bạn tùy chỉnh các khía cạnh khác nhau về cách xử lý và xuất ra codebase của bạn.
@@ -88,6 +93,7 @@ File cấu hình JavaScript hoạt động tương tự như TypeScript, hỗ tr
 | `input.maxFileSize`              | Kích thước file tối đa tính bằng byte để xử lý. Các file lớn hơn sẽ bị bỏ qua. Hữu ích để loại trừ các file binary lớn hoặc file dữ liệu | `50000000`            |
 | `output.filePath`                | Tên file đầu ra. Hỗ trợ định dạng XML, Markdown và văn bản thuần túy                                                        | `"repomix-output.xml"` |
 | `output.style`                   | Kiểu đầu ra (`xml`, `markdown`, `json`, `plain`). Mỗi định dạng có những ưu điểm riêng cho các công cụ AI khác nhau               | `"xml"`                |
+| `output.filePathStyle`           | Cách hiển thị đường dẫn tệp trong đầu ra (`target-relative` giữ đường dẫn tương đối so với thư mục gốc của mỗi mục tiêu, `cwd-relative` giữ đường dẫn tương đối so với thư mục làm việc hiện tại) | `"target-relative"`    |
 | `output.parsableStyle`           | Có nên escape đầu ra dựa trên schema kiểu đã chọn hay không. Cho phép phân tích tốt hơn nhưng có thể tăng số lượng token | `false`                |
 | `output.compress`                | Có nên thực hiện trích xuất mã thông minh bằng Tree-sitter để giảm số lượng token trong khi bảo toàn cấu trúc hay không    | `false`                |
 | `output.headerText`              | Văn bản tùy chỉnh để đưa vào header file. Hữu ích để cung cấp ngữ cảnh hoặc hướng dẫn cho các công cụ AI                  | `null`                 |
@@ -101,6 +107,7 @@ File cấu hình JavaScript hoạt động tương tự như TypeScript, hỗ tr
 | `output.truncateBase64`          | Có nên cắt bớt các chuỗi dữ liệu base64 dài (ví dụ: hình ảnh) để giảm số lượng token hay không                            | `false`                |
 | `output.copyToClipboard`         | Có nên sao chép đầu ra vào clipboard hệ thống ngoài việc lưu file hay không                                                | `false`                |
 | `output.splitOutput`             | Chia đầu ra thành nhiều tệp được đánh số theo kích thước tối đa mỗi phần (ví dụ: `1000000` cho ~1MB). CLI chấp nhận kích thước dễ đọc như `500kb` hoặc `2mb`. Giữ mỗi tệp dưới giới hạn và tránh chia các tệp nguồn giữa các phần | Không đặt |
+| `output.tokenBudget`             | Thất bại với mã thoát khác không khi đầu ra đã đóng gói vượt quá số token này. Hoạt động như một biện pháp bảo vệ cho giới hạn ngữ cảnh CI/agent; đầu ra vẫn được tạo ra | Không đặt |
 | `output.topFilesLength`          | Số file hàng đầu để hiển thị trong tóm tắt. Nếu đặt thành 0, sẽ không hiển thị tóm tắt                                     | `5`                    |
 | `output.includeEmptyDirectories` | Có nên bao gồm các thư mục trống trong cấu trúc repository hay không                                                       | `false`                |
 | `output.includeFullDirectoryStructure` | Khi sử dụng mẫu `include`, có nên hiển thị cây thư mục hoàn chỉnh (tuân theo mẫu ignore) trong khi vẫn chỉ xử lý các file được bao gồm hay không. Cung cấp ngữ cảnh repository đầy đủ cho phân tích AI | `false`                |
@@ -152,6 +159,7 @@ Bạn có thể bật xác thực schema cho file cấu hình của mình bằng
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Thông tin header tùy chỉnh cho file đã đóng gói.",

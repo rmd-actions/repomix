@@ -1,3 +1,8 @@
+---
+title: "Elaborazione Repository Remoti"
+description: "Impacchetta repository GitHub con Repomix usando URL completi, abbreviazione user/repo, branch, tag, commit, Docker e controlli di fiducia per configurazioni remote."
+---
+
 # Elaborazione Repository Remoti
 
 ## Utilizzo Base
@@ -9,6 +14,14 @@ repomix --remote https://github.com/user/repo
 # Usando il formato abbreviato GitHub
 repomix --remote user/repo
 ```
+
+Puoi anche passare la forma abbreviata `owner/repo` direttamente, senza `--remote`:
+
+```bash
+repomix yamadashy/repomix
+```
+
+Poiché `owner/repo` assomiglia anche a un percorso locale relativo, Repomix lo tratta come un repository remoto solo quando non esiste alcun file o directory locale con quel nome e il repository è raggiungibile su GitHub. Un percorso locale esistente ha sempre la precedenza; per forzare la gestione locale di un percorso in forma `owner/repo`, anteponi `./` (ad esempio, `repomix ./owner/repo`). Se l'argomento corrisponde al pattern ma il repository non è raggiungibile (ad esempio un repository privato o un errore di battitura), Repomix lo gestisce come un percorso locale.
 
 ## Selezione Branch e Commit
 

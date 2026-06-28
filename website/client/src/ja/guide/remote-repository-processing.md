@@ -1,3 +1,8 @@
+---
+title: GitHubリポジトリの処理
+description: 完全なURL、user/repo短縮表記、ブランチ、タグ、コミット、Docker、リモート設定の信頼制御を使ってGitHubリポジトリをRepomixでパックします。
+---
+
 # GitHubリポジトリの処理
 
 ## 基本的な使用方法
@@ -10,6 +15,14 @@ repomix --remote https://github.com/user/repo
 # GitHubのショートハンド形式を使用
 repomix --remote user/repo
 ```
+
+`--remote` を付けずに `owner/repo` のショートハンドを直接渡すこともできます。
+
+```bash
+repomix yamadashy/repomix
+```
+
+`owner/repo` は相対ローカルパスとも見分けがつかないため、Repomix は同名のローカルファイル・ディレクトリが存在せず、かつそのリポジトリが GitHub 上で到達可能な場合にのみリモートリポジトリとして扱います。同名のローカルパスがある場合は常にそちらが優先されます。`owner/repo` 形式のパスを強制的にローカルとして扱わせたい場合は、`./` を付けてください（例: `repomix ./owner/repo`）。引数がこのパターンに一致してもリポジトリに到達できない場合（プライベートリポジトリやタイプミスなど）は、Repomix はそれをローカルパスとして処理するようフォールバックします。
 
 ## ブランチとコミットの選択
 

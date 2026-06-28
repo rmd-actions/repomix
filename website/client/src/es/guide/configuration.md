@@ -1,3 +1,8 @@
+---
+title: "Configuración"
+description: "Configura Repomix con archivos JSON, JSONC, JSON5, JavaScript o TypeScript, incluidos formatos de salida, patrones include e ignore y opciones avanzadas."
+---
+
 # Configuración
 
 Repomix puede configurarse mediante un archivo de configuración o opciones de línea de comandos. El archivo de configuración le permite personalizar varios aspectos de cómo se procesa y genera la salida de su base de código.
@@ -88,6 +93,7 @@ Los archivos de configuración JavaScript funcionan igual que TypeScript, admiti
 | `input.maxFileSize`              | Tamaño máximo de archivo en bytes para procesar. Los archivos más grandes serán ignorados. Útil para excluir archivos binarios grandes o archivos de datos | `50000000`            |
 | `output.filePath`                | Nombre del archivo de salida. Admite formatos XML, Markdown y texto plano                                                    | `"repomix-output.xml"` |
 | `output.style`                   | Estilo de salida (`xml`, `markdown`, `json`, `plain`). Cada formato tiene sus propias ventajas para diferentes herramientas de IA    | `"xml"`                |
+| `output.filePathStyle`           | Cómo se muestran las rutas de archivos en la salida (`target-relative` mantiene las rutas relativas a cada raíz de destino, `cwd-relative` mantiene las rutas relativas al directorio de trabajo actual) | `"target-relative"`    |
 | `output.parsableStyle`           | Indica si se debe escapar la salida según el esquema de estilo elegido. Permite un mejor análisis pero puede aumentar el recuento de tokens | `false`                |
 | `output.compress`                | Indica si se debe realizar una extracción inteligente de código usando Tree-sitter para reducir el recuento de tokens mientras se preserva la estructura | `false`                |
 | `output.headerText`              | Texto personalizado para incluir en el encabezado del archivo. Útil para proporcionar contexto o instrucciones a las herramientas de IA | `null`                 |
@@ -101,6 +107,7 @@ Los archivos de configuración JavaScript funcionan igual que TypeScript, admiti
 | `output.truncateBase64`          | Indica si se deben truncar las cadenas de datos base64 largas (por ejemplo, imágenes) para reducir el recuento de tokens  | `false`                |
 | `output.copyToClipboard`         | Indica si se debe copiar la salida al portapapeles del sistema además de guardar el archivo                                | `false`                |
 | `output.splitOutput`             | Dividir la salida en múltiples archivos numerados por tamaño máximo por parte (ej., `1000000` para ~1MB). CLI acepta tamaños legibles como `500kb` o `2mb`. Mantiene cada archivo bajo el límite y evita dividir archivos de origen entre partes | No establecido |
+| `output.tokenBudget`             | Fallar con un código de salida distinto de cero cuando la salida empaquetada supera esta cantidad de tokens. Actúa como protección para los límites de contexto de CI/agente; la salida se sigue generando | No establecido |
 | `output.topFilesLength`          | Número de archivos principales para mostrar en el resumen. Si se establece en 0, no se mostrará ningún resumen             | `5`                    |
 | `output.includeEmptyDirectories` | Indica si se deben incluir directorios vacíos en la estructura del repositorio                                             | `false`                |
 | `output.includeFullDirectoryStructure` | Al usar patrones `include`, indica si se debe mostrar el árbol de directorios completo (respetando los patrones ignore) mientras se procesan solo los archivos incluidos. Proporciona contexto completo del repositorio para análisis de IA | `false`                |
@@ -152,6 +159,7 @@ Aquí hay un ejemplo de un archivo de configuración completo (`repomix.config.j
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Información de encabezado personalizada para el archivo empaquetado.",

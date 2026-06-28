@@ -1,3 +1,8 @@
+---
+title: "Processamento de Repositório GitHub"
+description: "Empacote repositórios GitHub com o Repomix usando URLs completas, abreviação usuário/repo, branches, tags, commits, Docker e controles de confiança para configuração remota."
+---
+
 # Processamento de Repositório GitHub
 
 ## Uso Básico
@@ -10,6 +15,14 @@ repomix --remote https://github.com/user/repo
 # Usando atalho do GitHub
 repomix --remote user/repo
 ```
+
+Você também pode passar o atalho `owner/repo` diretamente, sem `--remote`:
+
+```bash
+repomix yamadashy/repomix
+```
+
+Como `owner/repo` também se parece com um caminho local relativo, o Repomix só o trata como um repositório remoto quando não existe nenhum arquivo ou diretório local com esse nome e o repositório está acessível no GitHub. Um caminho local existente sempre tem precedência; para forçar o tratamento local de um caminho no formato `owner/repo`, prefixe-o com `./` (por exemplo, `repomix ./owner/repo`). Se o argumento corresponder ao padrão mas o repositório não puder ser acessado (por exemplo, um repositório privado ou um erro de digitação), o Repomix volta a tratá-lo como um caminho local.
 
 ## Seleção de Branch e Commit
 

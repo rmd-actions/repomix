@@ -1,3 +1,8 @@
+---
+title: 設定
+description: JSON、JSONC、JSON5、JavaScript、TypeScript設定ファイルで、出力形式、includeとignoreパターン、高度なオプションを含むRepomixの設定方法を説明します。
+---
+
 # 設定
 
 Repomixは設定ファイルまたはコマンドラインオプションを使用して設定できます。設定ファイルを使用することで、コードベースの処理と出力方法をカスタマイズできます。
@@ -88,6 +93,7 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
 | `input.maxFileSize`              | 処理する最大ファイルサイズ（バイト）。これより大きいファイルはスキップされます。大きなバイナリファイルやデータファイルを除外するのに便利です | `50000000`            |
 | `output.filePath`                | 出力ファイル名。XML、Markdown、プレーンテキスト形式をサポートしています                                                      | `"repomix-output.xml"` |
 | `output.style`                   | 出力形式（`xml`、`markdown`、`json`、`plain`）。各形式はAIツールに応じて異なる利点があります                                        | `"xml"`                |
+| `output.filePathStyle`           | 出力内でのファイルパスの表示方法（`target-relative` は各ターゲットルートからの相対パス、`cwd-relative` はカレントワーキングディレクトリからの相対パスを使用）   | `"target-relative"`    |
 | `output.parsableStyle`           | 選択したスタイルスキーマに基づいて出力をエスケープするかどうか。より良い解析が可能になりますが、トークン数が増加する可能性があります | `false`                |
 | `output.compress`                | Tree-sitterを使用してインテリジェントなコード抽出を実行し、構造を保持しながらトークン数を削減するかどうか                  | `false`                |
 | `output.headerText`              | ファイルヘッダーに含めるカスタムテキスト。AIツールにコンテキストや指示を提供するのに便利です                              | `null`                 |
@@ -101,6 +107,7 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
 | `output.truncateBase64`          | 長いbase64データ文字列（例：画像）を切り詰めてトークン数を削減するかどうか                                                | `false`                |
 | `output.copyToClipboard`         | ファイルの保存に加えて、出力をシステムクリップボードにコピーするかどうか                                                   | `false`                |
 | `output.splitOutput`             | パートあたりの最大サイズで出力を複数の番号付きファイルに分割します（例：`1000000`で約1MB）。CLIは`500kb`や`2mb`のような読みやすいサイズを受け付けます。各ファイルが制限以下に保たれ、単一のソースファイルがパート間で分割されることを防ぎます | 未設定 |
+| `output.tokenBudget`             | パックした出力がこのトークン数を超えた場合、ゼロ以外の終了コードで失敗します。CI/エージェントのコンテキスト制限に対するガードとして機能します。出力自体は生成されます | 未設定 |
 | `output.topFilesLength`          | 要約に表示するトップファイルの数。0に設定すると、要約は表示されません                                                       | `5`                    |
 | `output.includeEmptyDirectories` | リポジトリ構造に空のディレクトリを含めるかどうか                                                                           | `false`                |
 | `output.includeFullDirectoryStructure` | `include`パターンを使用する際、includeされたファイルのみを処理しながら、完全なディレクトリツリー（ignoreパターンに従う）を表示するかどうか。AI分析のための完全なリポジトリコンテキストを提供します | `false`                |
@@ -152,6 +159,7 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "パッケージ化されたファイルのカスタムヘッダー情報",

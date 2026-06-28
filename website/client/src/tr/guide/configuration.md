@@ -1,3 +1,8 @@
+---
+title: "Yapılandırma"
+description: "Repomix’i JSON, JSONC, JSON5, JavaScript veya TypeScript dosyalarıyla yapılandırın; çıktı formatları, include ve ignore desenleri ile gelişmiş seçenekleri ayarlayın."
+---
+
 # Yapılandırma
 
 Repomix, bir yapılandırma dosyası veya komut satırı seçenekleri kullanılarak yapılandırılabilir. Yapılandırma dosyası, Repomix'in kod tabanınızı işleme ve çıktı alma biçiminin çeşitli yönlerini özelleştirmenize olanak tanır.
@@ -88,6 +93,7 @@ JavaScript yapılandırma dosyaları, `defineConfig` ve dinamik değerleri deste
 | `input.maxFileSize`              | İşlenecek maksimum dosya boyutu (bayt). Bu boyutu aşan dosyalar atlanır. Büyük ikili dosyaları veya veri dosyalarını hariç tutmak için kullanışlıdır | `50000000`            |
 | `output.filePath`                | Çıktı dosyasının adı. XML, Markdown ve düz metin formatlarını destekler                                                     | `"repomix-output.xml"` |
 | `output.style`                   | Çıktının stili (`xml`, `markdown`, `json`, `plain`). Her formatın farklı AI araçları için kendine özgü avantajları vardır   | `"xml"`                |
+| `output.filePathStyle`           | Çıktıda dosya yollarının gösterilme biçimi (`target-relative` yolları her hedef köke göre, `cwd-relative` ise geçerli çalışma dizinine göre göreceli tutar) | `"target-relative"`    |
 | `output.parsableStyle`           | Çıktının seçilen stil şemasına göre kaçış karakteriyle işlenip işlenmeyeceği. Daha iyi ayrıştırma sağlar ancak token sayısını artırabilir | `false`                |
 | `output.compress`                | Token sayısını azaltırken yapıyı korumak amacıyla Tree-sitter kullanarak akıllı kod çıkarma yapılıp yapılmayacağı            | `false`                |
 | `output.headerText`              | Dosya başlığına dahil edilecek özel metin. AI araçları için bağlam veya talimat sağlamak için kullanışlıdır                  | `null`                 |
@@ -101,6 +107,7 @@ JavaScript yapılandırma dosyaları, `defineConfig` ve dinamik değerleri deste
 | `output.truncateBase64`          | Token sayısını azaltmak için uzun base64 veri dizelerinin (örn. görseller) kırpılıp kırpılmayacağı                          | `false`                |
 | `output.copyToClipboard`         | Dosyayı kaydetmeye ek olarak çıktının sistem panosuna kopyalanıp kopyalanmayacağı                                           | `false`                |
 | `output.splitOutput`             | Çıktıyı parça başına maksimum boyuta göre numaralı birden fazla dosyaya böl (örn. yaklaşık 1MB için `1000000`). CLI, `500kb` veya `2mb` gibi insan tarafından okunabilir boyutları kabul eder. Her dosyayı sınırın altında tutar ve dosyaların parçalar arasında bölünmesini önler | Ayarlanmamış           |
+| `output.tokenBudget`             | Paketlenmiş çıktı bu kadar tokeni aştığında sıfır olmayan bir çıkış koduyla başarısız ol. CI/ajan bağlam sınırları için bir koruma görevi görür; çıktı yine de oluşturulur | Ayarlanmamış           |
 | `output.topFilesLength`          | Özette gösterilecek en iyi dosya sayısı. 0 olarak ayarlanırsa özet gösterilmez                                              | `5`                    |
 | `output.includeEmptyDirectories` | Depo yapısına boş dizinlerin dahil edilip edilmeyeceği                                                                      | `false`                |
 | `output.includeFullDirectoryStructure` | `include` kalıpları kullanılırken yalnızca dahil edilen dosyaları işlerken tam dizin ağacının (yoksayma kalıplarına uyarak) görüntülenip görüntülenmeyeceği. AI analizi için tam depo bağlamı sağlar | `false`                |
@@ -152,6 +159,7 @@ Eksiksiz bir yapılandırma dosyası örneği (`repomix.config.json`):
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Custom header information for the packed file.",
