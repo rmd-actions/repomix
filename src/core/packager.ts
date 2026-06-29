@@ -12,6 +12,7 @@ import type { ProcessedFile } from './file/fileTypes.js';
 import { getGitDiffs } from './git/gitDiffHandle.js';
 import { getGitLogs } from './git/gitLogHandle.js';
 import { calculateMetrics, createMetricsTaskRunner } from './metrics/calculateMetrics.js';
+import { loadTokenCountCache, saveTokenCountCache } from './metrics/tokenCountCache.js';
 import { prefetchSortData, sortOutputFiles } from './output/outputSort.js';
 import { produceOutput } from './packager/produceOutput.js';
 import type { SuspiciousFileResult } from './security/securityCheck.js';
@@ -79,6 +80,12 @@ export const pack = async (
 
   logMemoryUsage('Pack - Start');
 
+  // Kick off the token-count cache load in the background so it is ready by
+  // the time `calculateFileMetrics` reads it. The load itself is small (a few
+  // hundred KB of JSON at most), but starting it here lets it overlap with
+  // file search and collection rather than blocking the metrics phase.
+  const tokenCacheLoadPromise = loadTokenCountCache();
+
   // Pre-fetch git file-change counts for sortOutputFiles while search and
   // collection are in flight, so the later sortOutputFiles call is a cache hit.
   const sortDataPromise = deps.prefetchSortData(config).catch((error) => {
@@ -114,8 +121,10 @@ export const pack = async (
   }));
 
   // Pre-initialize metrics worker pool to overlap gpt-tokenizer loading with subsequent pipeline stages
-  // (security check, file processing, output generation).
+  // (security check, file processing, output generation). `rootDirs` flows into the warm-up sizing so
+  // a per-repo "seen" marker can switch between cold (full warm-up) and warm-likely (single worker).
   const { taskRunner: metricsTaskRunner, warmupPromise: metricsWarmupPromise } = deps.createMetricsTaskRunner(
+    rootDirs,
     allFilePaths.length,
     config.tokenCount.encoding,
   );
@@ -208,6 +217,10 @@ export const pack = async (
 
     // Ensure warm-up task completes before metrics calculation
     await metricsWarmupPromise;
+    // Ensure the token-count cache is loaded before calculateFileMetrics reads
+    // from it. The load was started at the very beginning of pack() and is
+    // typically already resolved; this await is a safety net for fast machines.
+    await tokenCacheLoadPromise;
 
     // Generate and write output, overlapping with metrics calculation.
     // File and git metrics don't depend on the output, so they start immediately
@@ -254,6 +267,11 @@ export const pack = async (
       safeFilePaths,
       skippedFiles: allSkippedFiles,
     };
+
+    // Persist the token-count cache for future runs. Awaited so newly produced
+    // entries are not lost if the CLI exits immediately after pack(). The save
+    // is atomic (writeFile-to-tmp + rename) and silently swallows errors.
+    await saveTokenCountCache(rootDirs);
 
     logMemoryUsage('Pack - End');
 
