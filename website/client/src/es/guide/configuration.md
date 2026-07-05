@@ -93,8 +93,10 @@ Los archivos de configuración JavaScript funcionan igual que TypeScript, admiti
 | `input.maxFileSize`              | Tamaño máximo de archivo en bytes para procesar. Los archivos más grandes serán ignorados. Útil para excluir archivos binarios grandes o archivos de datos | `50000000`            |
 | `output.filePath`                | Nombre del archivo de salida. Admite formatos XML, Markdown y texto plano                                                    | `"repomix-output.xml"` |
 | `output.style`                   | Estilo de salida (`xml`, `markdown`, `json`, `plain`). Cada formato tiene sus propias ventajas para diferentes herramientas de IA    | `"xml"`                |
+| `output.filePathStyle`           | Cómo se muestran las rutas de archivos en la salida (`target-relative` mantiene las rutas relativas a cada raíz de destino, `cwd-relative` mantiene las rutas relativas al directorio de trabajo actual) | `"target-relative"`    |
 | `output.parsableStyle`           | Indica si se debe escapar la salida según el esquema de estilo elegido. Permite un mejor análisis pero puede aumentar el recuento de tokens | `false`                |
 | `output.compress`                | Indica si se debe realizar una extracción inteligente de código usando Tree-sitter para reducir el recuento de tokens mientras se preserva la estructura | `false`                |
+| `output.patterns`                | Niveles de inclusión por archivo. Un array ordenado de entradas `{ pattern, compress?, directoryStructureOnly? }`; gana el primer glob que coincide y anula el `output.compress` global para ese archivo. Consulte [Niveles de inclusión por archivo](#niveles-de-inclusion-por-archivo) | No establecido         |
 | `output.headerText`              | Texto personalizado para incluir en el encabezado del archivo. Útil para proporcionar contexto o instrucciones a las herramientas de IA | `null`                 |
 | `output.instructionFilePath`     | Ruta a un archivo que contiene instrucciones personalizadas detalladas para el procesamiento de IA                          | `null`                 |
 | `output.fileSummary`             | Indica si se debe incluir una sección de resumen al principio mostrando recuentos de archivos, tamaños y otras métricas    | `true`                 |
@@ -106,6 +108,7 @@ Los archivos de configuración JavaScript funcionan igual que TypeScript, admiti
 | `output.truncateBase64`          | Indica si se deben truncar las cadenas de datos base64 largas (por ejemplo, imágenes) para reducir el recuento de tokens  | `false`                |
 | `output.copyToClipboard`         | Indica si se debe copiar la salida al portapapeles del sistema además de guardar el archivo                                | `false`                |
 | `output.splitOutput`             | Dividir la salida en múltiples archivos numerados por tamaño máximo por parte (ej., `1000000` para ~1MB). CLI acepta tamaños legibles como `500kb` o `2mb`. Mantiene cada archivo bajo el límite y evita dividir archivos de origen entre partes | No establecido |
+| `output.tokenBudget`             | Fallar con un código de salida distinto de cero cuando la salida empaquetada supera esta cantidad de tokens. Actúa como protección para los límites de contexto de CI/agente; la salida se sigue generando | No establecido |
 | `output.topFilesLength`          | Número de archivos principales para mostrar en el resumen. Si se establece en 0, no se mostrará ningún resumen             | `5`                    |
 | `output.includeEmptyDirectories` | Indica si se deben incluir directorios vacíos en la estructura del repositorio                                             | `false`                |
 | `output.includeFullDirectoryStructure` | Al usar patrones `include`, indica si se debe mostrar el árbol de directorios completo (respetando los patrones ignore) mientras se procesan solo los archivos incluidos. Proporciona contexto completo del repositorio para análisis de IA | `false`                |
@@ -157,6 +160,7 @@ Aquí hay un ejemplo de un archivo de configuración completo (`repomix.config.j
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "Información de encabezado personalizada para el archivo empaquetado.",
@@ -167,6 +171,10 @@ Aquí hay un ejemplo de un archivo de configuración completo (`repomix.config.j
     "removeEmptyLines": false,
     "topFilesLength": 5,
     "showLineNumbers": false,
+    // "patterns": [
+    //   { "pattern": "docs/**/*", "compress": true },
+    //   { "pattern": "website/**/*", "directoryStructureOnly": true }
+    // ],
     "truncateBase64": false,
     "copyToClipboard": false,
     "includeEmptyDirectories": false,
@@ -326,6 +334,37 @@ Beneficios principales:
 - Elimina cuerpos de funciones y detalles de implementación
 
 Para más detalles y ejemplos, consulte la [Guía de compresión de código](code-compress).
+
+### Niveles de inclusión por archivo
+
+Mientras que `output.compress` aplica un único nivel a cada archivo, `output.patterns` le permite controlar el nivel de detalle **por glob** desde su archivo de configuración. Cada entrada selecciona archivos mediante un glob (con la misma coincidencia que `include`/`ignore`) y anula la configuración global de `output.compress` para los archivos coincidentes.
+
+```json5
+{
+  "output": {
+    "compress": false, // el valor predeterminado global actúa como comodín general
+    "patterns": [
+      { "pattern": "docs/**/*", "compress": true },
+      { "pattern": "website/**/*", "directoryStructureOnly": true }
+    ]
+  }
+}
+```
+
+Cada archivo se resuelve a uno de tres niveles:
+
+- **Contenido completo** (predeterminado): se incluye el contenido completo del archivo.
+- **Comprimido** (`compress: true`): el contenido pasa por el mismo flujo de Tree-sitter que `output.compress`.
+- **Solo estructura de directorios** (`directoryStructureOnly: true`): el archivo se lista en la estructura de directorios, pero su bloque de contenido se omite por completo de la salida.
+
+Las reglas:
+
+- Los patrones se evalúan en el orden del array y **gana el primer patrón que coincide** para un archivo determinado.
+- Los flags de un patrón coincidente anulan la configuración global de `output.compress`. Un patrón que coincide sin establecer ningún flag fuerza el **contenido completo** para ese archivo, lo cual resulta útil para incluir archivos en una lista blanca y excluirlos de un `compress` global.
+- `directoryStructureOnly` tiene prioridad sobre `compress` cuando ambos se establecen en el mismo patrón.
+- Si ningún patrón coincide, se aplica el comportamiento global (contenido completo, o comprimido cuando `output.compress` es `true`).
+
+Esta opción solo está disponible en el archivo de configuración; no existe una opción CLI equivalente.
 
 ### Integración con Git
 

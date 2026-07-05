@@ -26,6 +26,7 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 |------|------|
 | `-o, --output <file>` | 輸出檔案路徑（預設：`repomix-output.xml`，標準輸出使用 `"-"`） |
 | `--style <style>` | 輸出格式：`xml`、`markdown`、`json` 或 `plain`（預設：`xml`） |
+| `--output-file-path-style <style>` | 輸出中顯示檔案路徑的方式：`target-relative` 或 `cwd-relative`（預設：`target-relative`） |
 | `--parsable-style` | 跳脫特殊字元以確保有效的 XML/Markdown（當輸出包含破壞格式的程式碼時需要） |
 | `--compress` | 使用 Tree-sitter 解析提取基本程式碼結構（類別、函數、介面） |
 | `--output-show-line-numbers` | 為輸出中的每行新增行號前綴 |
@@ -76,6 +77,7 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 
 ## 權杖計數選項
 - `--token-count-encoding <encoding>`: 計數用的分詞器模型：o200k_base（GPT-4o）、cl100k_base（GPT-3.5/4）等（預設：o200k_base）
+- `--token-budget <number>`: 當打包輸出超過 N 個權杖時以非零退出碼失敗。可在 CI 流水線和 agent 工作流程中作為防護，使輸出保持在目標模型的上下文視窗內。輸出仍會產生，僅由退出碼標示溢位
 
 ## MCP 選項
 - `--mcp`: 作為 Model Context Protocol 伺服器運行，用於 AI 工具整合
@@ -85,8 +87,15 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 | 選項 | 說明 |
 |------|------|
 | `--skill-generate [name]` | 產生 Claude Agent Skills 格式輸出到 `.claude/skills/<name>/` 目錄（省略名稱時自動產生） |
+| `--skill-project-name <name>` | 覆寫產生的 Skills 描述中使用的專案名稱 |
 | `--skill-output <path>` | 直接指定技能輸出目錄路徑（跳過位置選擇提示） |
 | `-f, --force` | 跳過所有確認提示（例如：技能目錄覆蓋） |
+
+## 監視模式選項
+
+- `-w, --watch`: 監視檔案變更並自動重新打包。會偵測新增、修改和刪除的檔案，對快速連續的變更進行防抖處理（300 毫秒），並在每次重新建構後印出時間戳記。按 `Ctrl+C` 停止。
+
+監視模式僅適用於本機目錄，因此無法與 `--remote`、作為位置參數傳入的遠端儲存庫 URL、`--stdout`、`--stdin`、`--split-output`、`--skill-generate` 或 `--copy` 組合使用。無論該選項是在命令列還是在組態檔中設定，這些限制都適用。
 
 ## 相關資源
 
@@ -125,6 +134,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # 使用簡寫的遠端儲存庫
 repomix --remote user/repo
 
+# 使用簡寫的遠端儲存庫（自動檢測，無需 --remote）
+repomix user/repo
+
 # 使用stdin的檔案清單
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -139,5 +151,9 @@ repomix --include-diffs --include-logs  # 同時包含差異和記錄
 # 權杖計數分析
 repomix --token-count-tree
 repomix --token-count-tree 1000  # 僅顯示擁有1000+權杖的檔案/目錄
+
+# 監視模式：檔案變更時自動重新打包
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 
