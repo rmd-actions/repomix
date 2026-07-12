@@ -6,6 +6,10 @@ import { TOKEN_ENCODINGS } from '../core/metrics/tokenEncodings.js';
 export const repomixOutputStyleSchema = v.picklist(['xml', 'markdown', 'json', 'plain']);
 export type RepomixOutputStyle = v.InferOutput<typeof repomixOutputStyleSchema>;
 
+// Output file path style enum
+export const repomixOutputFilePathStyleSchema = v.picklist(['target-relative', 'cwd-relative']);
+export type RepomixOutputFilePathStyle = v.InferOutput<typeof repomixOutputFilePathStyleSchema>;
+
 // Default values map
 export const defaultFilePathMap: Record<RepomixOutputStyle, string> = {
   xml: 'repomix-output.xml',
@@ -13,6 +17,19 @@ export const defaultFilePathMap: Record<RepomixOutputStyle, string> = {
   plain: 'repomix-output.txt',
   json: 'repomix-output.json',
 } as const;
+
+// Per-file inclusion level pattern (output.patterns).
+// Each entry targets files by glob (matched the same way as include/ignore) and
+// overrides the global output.compress setting for matching files. Patterns are
+// evaluated in array order and the first match wins. `directoryStructureOnly`
+// takes precedence over `compress`: the file is listed in the directory
+// structure but its content block is omitted from the output.
+export const outputPatternSchema = v.object({
+  pattern: v.string(),
+  compress: v.optional(v.boolean()),
+  directoryStructureOnly: v.optional(v.boolean()),
+});
+export type OutputPattern = v.InferOutput<typeof outputPatternSchema>;
 
 // Base config schema
 export const repomixConfigBaseSchema = v.object({
@@ -26,6 +43,7 @@ export const repomixConfigBaseSchema = v.object({
     v.object({
       filePath: v.optional(v.string()),
       style: v.optional(repomixOutputStyleSchema),
+      filePathStyle: v.optional(repomixOutputFilePathStyleSchema),
       parsableStyle: v.optional(v.boolean()),
       headerText: v.optional(v.string()),
       instructionFilePath: v.optional(v.string()),
@@ -35,6 +53,7 @@ export const repomixConfigBaseSchema = v.object({
       removeComments: v.optional(v.boolean()),
       removeEmptyLines: v.optional(v.boolean()),
       compress: v.optional(v.boolean()),
+      patterns: v.optional(v.array(outputPatternSchema)),
       topFilesLength: v.optional(v.number()),
       showLineNumbers: v.optional(v.boolean()),
       truncateBase64: v.optional(v.boolean()),
@@ -43,6 +62,7 @@ export const repomixConfigBaseSchema = v.object({
       includeFullDirectoryStructure: v.optional(v.boolean()),
       splitOutput: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(Number.MAX_SAFE_INTEGER))),
       tokenCountTree: v.optional(v.union([v.boolean(), v.number(), v.string()])),
+      tokenBudget: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(Number.MAX_SAFE_INTEGER))),
       git: v.optional(
         v.object({
           sortByChanges: v.optional(v.boolean()),
@@ -83,6 +103,7 @@ export const repomixConfigDefaultSchema = v.object({
   output: v.object({
     filePath: v.optional(v.string(), defaultFilePathMap.xml),
     style: v.optional(repomixOutputStyleSchema, 'xml'),
+    filePathStyle: v.optional(repomixOutputFilePathStyleSchema, 'target-relative'),
     parsableStyle: v.optional(v.boolean(), false),
     headerText: v.optional(v.string()),
     instructionFilePath: v.optional(v.string()),
@@ -100,6 +121,8 @@ export const repomixConfigDefaultSchema = v.object({
     includeFullDirectoryStructure: v.optional(v.boolean(), false),
     splitOutput: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(Number.MAX_SAFE_INTEGER))),
     tokenCountTree: v.optional(v.union([v.boolean(), v.number(), v.string()]), false),
+    // No default: undefined means "unlimited" (no budget enforced), preserving current behavior.
+    tokenBudget: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(Number.MAX_SAFE_INTEGER))),
     git: v.object({
       sortByChanges: v.optional(v.boolean(), true),
       sortByChangesMaxCommits: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1)), 100),

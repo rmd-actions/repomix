@@ -26,6 +26,7 @@ description: "Referenz aller Repomix-CLI-Optionen für Eingabe, Ausgabe, Dateiau
 |--------|-------------|
 | `-o, --output <file>` | Ausgabedateipfad (Standard: `repomix-output.xml`, `"-"` für stdout) |
 | `--style <style>` | Ausgabeformat: `xml`, `markdown`, `json` oder `plain` (Standard: `xml`) |
+| `--output-file-path-style <style>` | Darstellung der Dateipfade in der Ausgabe: `target-relative` oder `cwd-relative` (Standard: `target-relative`) |
 | `--parsable-style` | Sonderzeichen escapen, um gültiges XML/Markdown sicherzustellen (nötig wenn die Ausgabe Code enthält, der die Formatierung bricht) |
 | `--compress` | Wesentliche Code-Struktur (Klassen, Funktionen, Interfaces) mittels Tree-sitter-Parsing extrahieren |
 | `--output-show-line-numbers` | Jede Zeile mit ihrer Zeilennummer in der Ausgabe versehen |
@@ -76,6 +77,7 @@ description: "Referenz aller Repomix-CLI-Optionen für Eingabe, Ausgabe, Dateiau
 
 ## Token-Anzahl-Optionen
 - `--token-count-encoding <encoding>`: Tokenizer-Modell für Zählung: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4), etc. (Standard: o200k_base)
+- `--token-budget <number>`: Mit einem von Null verschiedenen Exit-Code fehlschlagen, wenn die gepackte Ausgabe N Token überschreitet. Nützlich als Schutz in CI-Pipelines und Agent-Workflows, um die Ausgabe innerhalb des Kontextfensters eines Zielmodells zu halten. Die Ausgabe wird trotzdem generiert; nur der Exit-Code signalisiert die Überschreitung.
 
 ## MCP-Optionen
 - `--mcp`: Als Model Context Protocol Server für AI-Tool-Integration ausführen
@@ -85,8 +87,15 @@ description: "Referenz aller Repomix-CLI-Optionen für Eingabe, Ausgabe, Dateiau
 | Option | Beschreibung |
 |--------|-------------|
 | `--skill-generate [name]` | Claude Agent Skills Format-Ausgabe ins Verzeichnis `.claude/skills/<name>/` generieren (Name wird automatisch generiert, wenn weggelassen) |
+| `--skill-project-name <name>` | Den in generierten Skills-Beschreibungen verwendeten Projektnamen überschreiben |
 | `--skill-output <path>` | Skill-Ausgabeverzeichnis direkt angeben (überspringt die Standortauswahl) |
 | `-f, --force` | Alle Bestätigungsaufforderungen überspringen (z.B. Skill-Verzeichnis überschreiben) |
+
+## Watch-Modus-Optionen
+
+- `-w, --watch`: Auf Dateiänderungen achten und automatisch neu packen. Neue, geänderte und gelöschte Dateien werden erkannt, schnell aufeinanderfolgende Änderungen werden entprellt (300 ms), und nach jedem Neuaufbau wird ein Zeitstempel ausgegeben. Mit `Ctrl+C` beenden.
+
+Der Watch-Modus funktioniert nur mit lokalen Verzeichnissen und kann daher nicht mit `--remote`, einer als Positionsargument übergebenen Remote-Repository-URL, `--stdout`, `--stdin`, `--split-output`, `--skill-generate` oder `--copy` kombiniert werden. Diese Einschränkungen gelten unabhängig davon, ob die Option über die Befehlszeile oder in Ihrer Konfigurationsdatei gesetzt wird.
 
 ## Verwandte Ressourcen
 
@@ -125,6 +134,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # Remote-Repository mit Kurzform
 repomix --remote user/repo
 
+# Remote-Repository mit Kurzform (automatisch erkannt, kein --remote nötig)
+repomix user/repo
+
 # Dateiliste mit stdin
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -139,5 +151,9 @@ repomix --include-diffs --include-logs  # Sowohl Diffs als auch Logs einschließ
 # Token-Anzahl-Analyse
 repomix --token-count-tree
 repomix --token-count-tree 1000  # Nur Dateien/Verzeichnisse mit 1000+ Tokens anzeigen
+
+# Watch-Modus: bei Dateiänderungen automatisch neu packen
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 

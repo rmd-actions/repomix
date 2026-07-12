@@ -26,6 +26,7 @@ description: "Consulte todas as opções da CLI do Repomix para entrada, saída,
 |-------|-----------|
 | `-o, --output <file>` | Caminho do arquivo de saída (padrão: `repomix-output.xml`, usar `"-"` para stdout) |
 | `--style <style>` | Formato de saída: `xml`, `markdown`, `json` ou `plain` (padrão: `xml`) |
+| `--output-file-path-style <style>` | Como os caminhos de arquivo são exibidos na saída: `target-relative` ou `cwd-relative` (padrão: `target-relative`) |
 | `--parsable-style` | Escapar caracteres especiais para garantir XML/Markdown válido (necessário quando a saída contém código que quebra a formatação) |
 | `--compress` | Extrair a estrutura essencial do código (classes, funções, interfaces) usando análise Tree-sitter |
 | `--output-show-line-numbers` | Adicionar número de linha a cada linha na saída |
@@ -76,6 +77,7 @@ description: "Consulte todas as opções da CLI do Repomix para entrada, saída,
 
 ## Opções de Contagem de Tokens
 - `--token-count-encoding <encoding>`: Modelo tokenizador para contagem: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4), etc. (padrão: o200k_base)
+- `--token-budget <number>`: Falhar com código de saída diferente de zero quando a saída empacotada exceder N tokens. Útil como proteção em pipelines de CI e fluxos de trabalho de agentes para manter a saída dentro da janela de contexto do modelo de destino. A saída ainda é gerada; apenas o código de saída sinaliza o estouro.
 
 ## Opções MCP
 - `--mcp`: Executar como servidor Model Context Protocol para integração de ferramentas de IA
@@ -85,8 +87,15 @@ description: "Consulte todas as opções da CLI do Repomix para entrada, saída,
 | Opção | Descrição |
 |-------|-----------|
 | `--skill-generate [name]` | Gerar saída no formato Claude Agent Skills no diretório `.claude/skills/<name>/` (nome gerado automaticamente se omitido) |
+| `--skill-project-name <name>` | Substituir o nome do projeto usado nas descrições de Skills geradas |
 | `--skill-output <path>` | Especificar o caminho do diretório de saída de skills diretamente (pula o prompt de local) |
 | `-f, --force` | Pular todos os prompts de confirmação (ex: sobrescrita do diretório de skills) |
+
+## Opções do modo de observação
+
+- `-w, --watch`: Observa alterações nos arquivos e reempacota automaticamente. Arquivos novos, alterados e excluídos são detectados, alterações rápidas sofrem debounce (300 ms) e um timestamp é impresso após cada reconstrução. Pressione `Ctrl+C` para parar.
+
+O modo de observação só funciona com diretórios locais, portanto não pode ser combinado com `--remote`, uma URL de repositório remoto passada como argumento posicional, `--stdout`, `--stdin`, `--split-output`, `--skill-generate` ou `--copy`. Essas restrições se aplicam tanto se a opção for definida na linha de comando quanto no seu arquivo de configuração.
 
 ## Recursos relacionados
 
@@ -125,6 +134,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # Repositório remoto com forma abreviada
 repomix --remote user/repo
 
+# Repositório remoto com forma abreviada (detectado automaticamente, sem --remote)
+repomix user/repo
+
 # Lista de arquivos usando stdin
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -139,5 +151,9 @@ repomix --include-diffs --include-logs  # Incluir tanto diffs quanto logs
 # Análise de contagem de tokens
 repomix --token-count-tree
 repomix --token-count-tree 1000  # Mostrar apenas arquivos/diretórios com 1000+ tokens
+
+# Modo de observação: reempacotar automaticamente ao alterar arquivos
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 

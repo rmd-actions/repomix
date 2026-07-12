@@ -26,6 +26,7 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 |------|------|
 | `-o, --output <file>` | 출력 파일 경로 (기본값: `repomix-output.xml`, 표준출력은 `"-"` 사용) |
 | `--style <style>` | 출력 형식: `xml`, `markdown`, `json`, 또는 `plain` (기본값: `xml`) |
+| `--output-file-path-style <style>` | 출력에 파일 경로를 표시하는 방식: `target-relative` 또는 `cwd-relative` (기본값: `target-relative`) |
 | `--parsable-style` | 유효한 XML/Markdown을 보장하기 위해 특수 문자 이스케이프 (출력에 서식을 깨는 코드가 포함된 경우 필요) |
 | `--compress` | Tree-sitter 파싱을 사용하여 핵심 코드 구조 추출 (클래스, 함수, 인터페이스) |
 | `--output-show-line-numbers` | 출력의 각 줄에 줄 번호 접두사 추가 |
@@ -76,6 +77,7 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 
 ## 토큰 수 옵션
 - `--token-count-encoding <encoding>`: 카운팅용 토크나이저 모델: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4) 등 (기본값: o200k_base)
+- `--token-budget <number>`: 패키징된 출력이 N개의 토큰을 초과하면 0이 아닌 종료 코드로 실패합니다. CI 파이프라인과 에이전트 워크플로에서 출력을 대상 모델의 컨텍스트 윈도우 내로 유지하기 위한 가드로 유용합니다. 출력은 여전히 생성되며, 종료 코드만 오버플로를 알립니다
 
 ## MCP 옵션
 - `--mcp`: AI 도구 통합을 위한 Model Context Protocol 서버로 실행
@@ -85,8 +87,15 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 | 옵션 | 설명 |
 |------|------|
 | `--skill-generate [name]` | Claude Agent Skills 형식 출력을 `.claude/skills/<name>/` 디렉토리에 생성 (이름 생략 시 자동 생성) |
+| `--skill-project-name <name>` | 생성된 Skills 설명에 사용되는 프로젝트 이름을 재정의 |
 | `--skill-output <path>` | 스킬 출력 디렉토리 경로를 직접 지정 (위치 선택 프롬프트 건너뜀) |
 | `-f, --force` | 모든 확인 프롬프트 건너뜀 (예: 스킬 디렉토리 덮어쓰기) |
+
+## 감시 모드 옵션
+
+- `-w, --watch`: 파일 변경을 감시하고 자동으로 다시 패킹합니다. 새 파일, 변경된 파일, 삭제된 파일이 감지되며, 빠르게 연속되는 변경은 디바운스(300 ms)되고, 다시 빌드할 때마다 타임스탬프가 출력됩니다. 중지하려면 `Ctrl+C`를 누르세요.
+
+감시 모드는 로컬 디렉터리에서만 작동하므로 `--remote`, 위치 인수로 전달된 원격 저장소 URL, `--stdout`, `--stdin`, `--split-output`, `--skill-generate`, `--copy`와 함께 사용할 수 없습니다. 이러한 제한은 옵션을 명령줄에서 설정하든 구성 파일에서 설정하든 동일하게 적용됩니다.
 
 ## 관련 리소스
 
@@ -130,6 +139,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # 축약형을 사용한 원격 저장소
 repomix --remote user/repo
 
+# 축약형을 사용한 원격 저장소 (자동 감지, --remote 불필요)
+repomix user/repo
+
 # stdin을 사용한 파일 목록
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -138,5 +150,9 @@ echo -e "src/index.ts\nsrc/utils.ts" | repomix --stdin
 # 토큰 수 분석
 repomix --token-count-tree
 repomix --token-count-tree 1000  # 1000개 이상의 토큰을 가진 파일/디렉토리만 표시
+
+# 감시 모드: 파일 변경 시 자동으로 다시 패킹
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 

@@ -4,6 +4,7 @@ import { logger } from '../shared/logger.js';
 import { logMemoryUsage, withMemoryLogging } from '../shared/memoryUtils.js';
 import type { RepomixProgressCallback } from '../shared/types.js';
 import { collectFiles, type SkippedFileInfo } from './file/fileCollect.js';
+import { resolveFileLevel } from './file/fileLevelResolve.js';
 import { sortPaths } from './file/filePathSort.js';
 import { processFiles } from './file/fileProcess.js';
 import { searchFiles } from './file/fileSearch.js';
@@ -15,6 +16,7 @@ import { calculateMetrics, createMetricsTaskRunner } from './metrics/calculateMe
 import { loadTokenCountCache, saveTokenCountCache } from './metrics/tokenCountCache.js';
 import { prefetchSortData, sortOutputFiles } from './output/outputSort.js';
 import { produceOutput } from './packager/produceOutput.js';
+import { buildFileDisplayPath, buildRootLabels, usesRootLabels } from './packager/rootDisplayPath.js';
 import type { SuspiciousFileResult } from './security/securityCheck.js';
 import { validateFileSafety } from './security/validateFileSafety.js';
 import type { PackSkillParams } from './skill/packSkill.js';
@@ -102,23 +104,53 @@ export const pack = async (
     ),
   );
 
+  const filePathStyle = config.output.filePathStyle;
+  const rootLabels =
+    usesRootLabels(filePathStyle) && rootDirs.length > 1 ? buildRootLabels(rootDirs, config.cwd) : undefined;
+
   // Deduplicate and sort empty directory paths for reuse during output generation,
   // avoiding a redundant searchFiles call in buildOutputGeneratorContext.
   const emptyDirPaths = config.output.includeEmptyDirectories
-    ? [...new Set(searchResultsByDir.flatMap((r) => r.emptyDirPaths))].sort()
+    ? [
+        ...new Set(
+          searchResultsByDir.flatMap(({ rootDir, emptyDirPaths }, index) => {
+            const rootLabel = rootLabels?.[index];
+            return emptyDirPaths.map((emptyDirPath) =>
+              buildFileDisplayPath({
+                rootDir,
+                filePath: emptyDirPath,
+                cwd: config.cwd,
+                filePathStyle,
+                rootLabel,
+              }),
+            );
+          }),
+        ),
+      ].sort()
     : undefined;
 
   // Sort file paths
   progressCallback('Sorting files...');
-  const allFilePaths = searchResultsByDir.flatMap(({ filePaths }) => filePaths);
-  const sortedFilePaths = deps.sortPaths(allFilePaths);
-
-  // Regroup sorted file paths by rootDir using Set for O(1) membership checks
-  const filePathSetByDir = new Map(searchResultsByDir.map(({ rootDir, filePaths }) => [rootDir, new Set(filePaths)]));
-  const sortedFilePathsByDir = rootDirs.map((rootDir) => ({
+  const sortedFilePathsByDir = searchResultsByDir.map(({ rootDir, filePaths }) => ({
     rootDir,
-    filePaths: sortedFilePaths.filter((filePath) => filePathSetByDir.get(rootDir)?.has(filePath) ?? false),
+    filePaths: deps.sortPaths([...new Set(filePaths)]),
   }));
+  const displayFilePathsByDir = sortedFilePathsByDir.map(({ rootDir, filePaths }, index) => {
+    const rootLabel = rootLabels?.[index];
+    return {
+      rootDir,
+      filePaths: filePaths.map((filePath) =>
+        buildFileDisplayPath({
+          rootDir,
+          filePath,
+          cwd: config.cwd,
+          filePathStyle,
+          rootLabel,
+        }),
+      ),
+    };
+  });
+  const allFilePaths = displayFilePathsByDir.flatMap(({ filePaths }) => filePaths);
 
   // Pre-initialize metrics worker pool to overlap gpt-tokenizer loading with subsequent pipeline stages
   // (security check, file processing, output generation). `rootDirs` flows into the warm-up sizing so
@@ -149,8 +181,42 @@ export const pack = async (
       deps.getGitLogs(rootDirs, config),
     ]);
 
-    const rawFiles = collectResults.flatMap((curr) => curr.rawFiles);
-    const allSkippedFiles = collectResults.flatMap((curr) => curr.skippedFiles);
+    const rawFiles = collectResults.flatMap((curr, index) => {
+      const rootDir = sortedFilePathsByDir[index]?.rootDir;
+      if (!rootDir) return [];
+      const rootLabel = rootLabels?.[index];
+      return curr.rawFiles.map((file) => ({
+        ...file,
+        // Resolve the inclusion level against the per-root-relative path (the same
+        // basis include/ignore match against), before `path` is rewritten to its
+        // display form below. Carrying it on the file means output.patterns globs
+        // match per-root regardless of root labels or output.filePathStyle, instead
+        // of being matched against the rewritten display path inside processFiles.
+        level: resolveFileLevel(file.path, config.output),
+        path: buildFileDisplayPath({
+          rootDir,
+          filePath: file.path,
+          cwd: config.cwd,
+          filePathStyle,
+          rootLabel,
+        }),
+      }));
+    });
+    const allSkippedFiles = collectResults.flatMap((curr, index) => {
+      const rootDir = sortedFilePathsByDir[index]?.rootDir;
+      if (!rootDir) return [];
+      const rootLabel = rootLabels?.[index];
+      return curr.skippedFiles.map((file) => ({
+        ...file,
+        path: buildFileDisplayPath({
+          rootDir,
+          filePath: file.path,
+          cwd: config.cwd,
+          filePathStyle,
+          rootLabel,
+        }),
+      }));
+    });
 
     // Run security check and file processing concurrently.
     // Security check uses worker threads while file processing runs on the main thread
@@ -208,12 +274,12 @@ export const pack = async (
     }
 
     // Build filePathsByRoot for multi-root tree generation
-    // Use directory basename as the label for each root
-    // Fallback to rootDir if basename is empty (e.g., filesystem root "/")
-    const filePathsByRoot: FilesByRoot[] = sortedFilePathsByDir.map(({ rootDir, filePaths }) => ({
-      rootLabel: path.basename(rootDir) || rootDir,
-      files: filePaths,
-    }));
+    const filePathsByRoot: FilesByRoot[] | undefined = usesRootLabels(filePathStyle)
+      ? sortedFilePathsByDir.map(({ rootDir, filePaths }, index) => ({
+          rootLabel: rootLabels?.[index] ?? (path.basename(rootDir) || rootDir),
+          files: filePaths,
+        }))
+      : undefined;
 
     // Ensure warm-up task completes before metrics calculation
     await metricsWarmupPromise;

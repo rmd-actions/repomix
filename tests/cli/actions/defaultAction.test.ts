@@ -274,6 +274,15 @@ describe('defaultAction', () => {
       expect(config.output?.style).toBe('xml');
     });
 
+    it('should handle custom output file path style', () => {
+      const options: CliOptions = {
+        outputFilePathStyle: 'cwd-relative',
+      };
+      const config = buildCliConfig(options);
+
+      expect(config.output?.filePathStyle).toBe('cwd-relative');
+    });
+
     it('should properly trim whitespace from comma-separated patterns', () => {
       const options = {
         include: 'src/**/*,  tests/**/*,   examples/**/*',
@@ -422,6 +431,44 @@ describe('defaultAction', () => {
 
       await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
         '--skill-generate cannot be used with --copy',
+      );
+    });
+
+    it('should throw error when --skill-project-name is used without --skill-generate', async () => {
+      const options: CliOptions = {
+        skillProjectName: 'Repomix',
+      };
+
+      await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
+        '--skill-project-name can only be used with --skill-generate',
+      );
+    });
+
+    it('should throw error when empty --skill-project-name is used without --skill-generate', async () => {
+      const options: CliOptions = {
+        skillProjectName: '',
+      };
+
+      await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
+        '--skill-project-name can only be used with --skill-generate',
+      );
+    });
+
+    it('should throw error when --skill-project-name is empty', async () => {
+      vi.mocked(configLoader.mergeConfigs).mockReturnValue(
+        createMockConfig({
+          cwd: process.cwd(),
+          skillGenerate: true,
+        }),
+      );
+
+      const options: CliOptions = {
+        skillGenerate: true,
+        skillProjectName: '   ',
+      };
+
+      await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
+        '--skill-project-name cannot be empty',
       );
     });
   });
