@@ -5,9 +5,11 @@ import {
   type RepomixConfigCli,
   type RepomixConfigFile,
   type RepomixConfigMerged,
+  type RepomixOutputFilePathStyle,
   type RepomixOutputStyle,
   repomixConfigCliSchema,
 } from '../../config/configSchema.js';
+import { logFileProcessorStatus } from '../../core/file/fileProcessorRun.js';
 import { readFilePathsFromStdin } from '../../core/file/fileStdin.js';
 import { type PackResult, pack } from '../../core/packager.js';
 import { generateDefaultSkillName } from '../../core/skill/skillUtils.js';
@@ -17,6 +19,7 @@ import { splitPatterns } from '../../shared/patternUtils.js';
 import type { RepomixProgressCallback } from '../../shared/types.js';
 import { reportResults } from '../cliReport.js';
 import { Spinner } from '../cliSpinner.js';
+import { validateTokenBudget } from '../cliTokenBudget.js';
 import { promptSkillLocation, resolveAndPrepareSkillDir } from '../prompts/skillPrompts.js';
 import type { CliOptions } from '../types.js';
 import { runMigrationAction } from './migrationAction.js';
@@ -26,16 +29,17 @@ export interface DefaultActionRunnerResult {
   config: RepomixConfigMerged;
 }
 
-export const runDefaultAction = async (
-  directories: string[],
-  cwd: string,
-  cliOptions: CliOptions,
-  progressCallback?: RepomixProgressCallback,
-): Promise<DefaultActionRunnerResult> => {
-  logger.trace('Loaded CLI options:', cliOptions);
-
-  // Run migration before loading config
-  await runMigrationAction(cwd);
+/**
+ * Builds the merged Repomix config from CLI options: runs pending migrations,
+ * loads the file config, parses the CLI options, and merges them. Shared by the
+ * default and watch actions so the config pipeline lives in one place.
+ */
+export const buildMergedConfig = async (cwd: string, cliOptions: CliOptions): Promise<RepomixConfigMerged> => {
+  // A remote repository can opt out of its local config. Its legacy files must
+  // not then trigger an interactive migration or mutate the temporary clone.
+  if (!cliOptions.skipLocalConfig) {
+    await runMigrationAction(cwd);
+  }
 
   // Load the config file in main process
   const fileConfig: RepomixConfigFile = await loadFileConfig(cwd, cliOptions.config ?? null, {
@@ -51,6 +55,24 @@ export const runDefaultAction = async (
   const config: RepomixConfigMerged = mergeConfigs(cwd, fileConfig, cliConfig);
   logger.trace('Merged config:', config);
 
+  // Surface configured file processors (active or disabled) for visibility, since
+  // they run arbitrary commands. Runs for every entry point (local, watch, remote).
+  logFileProcessorStatus(config);
+
+  return config;
+};
+
+export const runDefaultAction = async (
+  directories: string[],
+  cwd: string,
+  cliOptions: CliOptions,
+  progressCallback?: RepomixProgressCallback,
+): Promise<DefaultActionRunnerResult> => {
+  logger.trace('Loaded CLI options:', cliOptions);
+
+  // Build the merged config (migration + file config + CLI options)
+  const config = await buildMergedConfig(cwd, cliOptions);
+
   // Validate conflicting options
   validateConflictingOptions(config);
 
@@ -61,10 +83,16 @@ export const runDefaultAction = async (
   if (cliOptions.force && config.skillGenerate === undefined) {
     throw new RepomixError('--force can only be used with --skill-generate');
   }
+  if (cliOptions.skillProjectName !== undefined && config.skillGenerate === undefined) {
+    throw new RepomixError('--skill-project-name can only be used with --skill-generate');
+  }
 
   // Validate --skill-output is not empty or whitespace only
   if (cliOptions.skillOutput !== undefined && !cliOptions.skillOutput.trim()) {
     throw new RepomixError('--skill-output path cannot be empty');
+  }
+  if (cliOptions.skillProjectName !== undefined && !cliOptions.skillProjectName.trim()) {
+    throw new RepomixError('--skill-project-name cannot be empty');
   }
 
   // Validate skill generation options and prompt for location
@@ -140,6 +168,15 @@ export const runDefaultAction = async (
   // Report results
   reportResults(cwd, packResult, config, cliOptions);
 
+  // Enforce the token budget as the last step. The output has already been
+  // produced (and written) by this point, so this is a guard that fails the
+  // run with a non-zero exit code, not an in-pack fail-fast. Remote runs defer
+  // this check (see deferTokenBudgetCheck) so they can copy the output out of
+  // the temp dir before the guard throws.
+  if (!cliOptions.deferTokenBudgetCheck) {
+    validateTokenBudget(packResult.totalTokens, config.output.tokenBudget);
+  }
+
   return {
     packResult,
     config,
@@ -203,6 +240,12 @@ export const buildCliConfig = (options: CliOptions): RepomixConfigCli => {
       style: options.style.toLowerCase() as RepomixOutputStyle,
     };
   }
+  if (options.outputFilePathStyle) {
+    cliConfig.output = {
+      ...cliConfig.output,
+      filePathStyle: options.outputFilePathStyle.toLowerCase() as RepomixOutputFilePathStyle,
+    };
+  }
   if (options.parsableStyle !== undefined) {
     cliConfig.output = {
       ...cliConfig.output,
@@ -264,6 +307,10 @@ export const buildCliConfig = (options: CliOptions): RepomixConfigCli => {
 
   if (options.compress !== undefined) {
     cliConfig.output = { ...cliConfig.output, compress: options.compress };
+  }
+  // Internal MCP-only field: whole-array override of output.patterns from the config file.
+  if (options.outputPatterns !== undefined) {
+    cliConfig.output = { ...cliConfig.output, patterns: options.outputPatterns };
   }
 
   if (options.tokenCountEncoding) {
@@ -338,9 +385,21 @@ export const buildCliConfig = (options: CliOptions): RepomixConfigCli => {
     };
   }
 
+  if (options.tokenBudget !== undefined) {
+    cliConfig.output = {
+      ...cliConfig.output,
+      tokenBudget: options.tokenBudget,
+    };
+  }
+
   // Skill generation
   if (options.skillGenerate !== undefined) {
     cliConfig.skillGenerate = options.skillGenerate;
+  }
+
+  // Internal gate: only the real CLI entry point sets this (see commanderActionEndpoint).
+  if (options.enableFileProcessors !== undefined) {
+    cliConfig.enableFileProcessors = options.enableFileProcessors;
   }
 
   try {

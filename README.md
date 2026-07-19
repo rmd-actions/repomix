@@ -626,6 +626,7 @@ Instruction
 |--------|-------------|
 | `-o, --output <file>` | Output file path (default: `repomix-output.xml`, use `"-"` for stdout) |
 | `--style <style>` | Output format: `xml`, `markdown`, `json`, or `plain` (default: `xml`) |
+| `--output-file-path-style <style>` | How file paths are shown in output: `target-relative` or `cwd-relative` (default: `target-relative`) |
 | `--parsable-style` | Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting) |
 | `--compress` | Extract essential code structure (classes, functions, interfaces) using Tree-sitter parsing |
 | `--output-show-line-numbers` | Prefix each line with its line number in the output |
@@ -676,6 +677,7 @@ Instruction
 
 #### Token Count Options
 - `--token-count-encoding <encoding>`: Tokenizer model for counting: o200k_base (GPT-4o), cl100k_base (GPT-3.5/4), etc. (default: o200k_base)
+- `--token-budget <number>`: Fail with a non-zero exit code when the packed output exceeds N tokens. Useful as a guard in CI pipelines and agent workflows to keep output within a target model's context window. The output is still generated; only the exit code signals the overflow.
 
 #### MCP
 - `--mcp`: Run as Model Context Protocol server for AI tool integration
@@ -685,8 +687,14 @@ Instruction
 | Option | Description |
 |--------|-------------|
 | `--skill-generate [name]` | Generate Claude Agent Skills format output to `.claude/skills/<name>/` directory (name auto-generated if omitted) |
+| `--skill-project-name <name>` | Override the project name used in generated Skills descriptions |
 | `--skill-output <path>` | Specify skill output directory path directly (skips location prompt) |
 | `-f, --force` | Skip all confirmation prompts (e.g., skill directory overwrite) |
+
+#### Watch Mode
+- `-w, --watch`: Watch for file changes and automatically re-pack. Debounces rapid changes (300ms) and logs a timestamp on each rebuild. Stop with `Ctrl+C`.
+
+  Watch mode only works with local directories, so it cannot be combined with `--remote`, a positional remote repository URL, `--stdout`, `--stdin`, `--split-output`, `--skill-generate`, or `--copy` (whether set on the command line or in your config file).
 
 #### Examples
 
@@ -720,6 +728,10 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 
 # Remote repository with shorthand
 repomix --remote user/repo
+
+# Watch mode — automatically re-pack on file changes
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 
 ### Updating Repomix
@@ -837,6 +849,37 @@ interface Item {
 
 > [!NOTE]
 > This is an experimental feature that we'll be actively improving based on user feedback and real-world usage
+
+### Per-file Inclusion Levels (`output.patterns`)
+
+While `--compress` applies one level to every file, `output.patterns` lets you control the detail level **per glob** from your config file. Each entry targets files by glob (matched the same way as `include`/`ignore`) and overrides the global `output.compress` setting for matching files:
+
+```json5
+{
+  "output": {
+    "compress": false, // global default acts as the catch-all
+    "patterns": [
+      { "pattern": "docs/**/*", "compress": true },
+      { "pattern": "website/**/*", "directoryStructureOnly": true }
+    ]
+  }
+}
+```
+
+There are three levels:
+
+- **Full content** (default) — the file's full content is included.
+- **Compressed** (`compress: true`) — the content is passed through the same Tree-sitter pipeline as `--compress`.
+- **Directory-structure-only** (`directoryStructureOnly: true`) — the file is listed in the directory structure, but its content block is omitted from the output entirely.
+
+Semantics:
+
+- Patterns are evaluated in array order and the **first matching pattern wins** for a given file.
+- A matched pattern's flags override the global `output.compress` setting. A pattern that matches without setting either flag forces **full content** for that file (useful for whitelisting files out of a global `compress`).
+- `directoryStructureOnly` takes precedence over `compress` when both are set.
+- If no pattern matches, the global behavior applies (full content, or compressed when `output.compress` is `true`).
+
+This is a config-file-only option; there is no CLI flag for per-pattern levels.
 
 ### Token Count Optimization
 
@@ -991,6 +1034,7 @@ When running as an MCP server, Repomix provides the following tools:
     - `compress`: (Optional, default: false) Enable Tree-sitter compression to extract essential code signatures and structure while removing implementation details. Reduces token usage by ~70% while preserving semantic meaning. Generally not needed since grep_repomix_output allows incremental content retrieval. Use only when you specifically need the entire codebase content for large repositories.
     - `includePatterns`: (Optional) Specify files to include using fast-glob patterns. Multiple patterns can be comma-separated (e.g., "**/*.{js,ts}", "src/**,docs/**"). Only matching files will be processed.
     - `ignorePatterns`: (Optional) Specify additional files to exclude using fast-glob patterns. Multiple patterns can be comma-separated (e.g., "test/**,*.spec.js", "node_modules/**,dist/**"). These patterns supplement .gitignore, .ignore, and built-in exclusions.
+    - `outputPatterns`: (Optional) Per-file inclusion levels, mirroring the config-file `output.patterns` option. An array of `{ pattern, compress?, directoryStructureOnly? }` entries; the first matching pattern wins, `directoryStructureOnly` takes precedence over `compress`, and a match with neither flag forces full content (useful for exempting files from a global `compress`). Overrides any `output.patterns` from the target repository's `repomix.config.json`.
     - `topFilesLength`: (Optional, default: 10) Number of largest files by size to display in the metrics summary for codebase analysis.
 
 2. **attach_packed_output**: Attach an existing Repomix packed output file for AI analysis
@@ -1009,6 +1053,7 @@ When running as an MCP server, Repomix provides the following tools:
     - `compress`: (Optional, default: false) Enable Tree-sitter compression to extract essential code signatures and structure while removing implementation details. Reduces token usage by ~70% while preserving semantic meaning. Generally not needed since grep_repomix_output allows incremental content retrieval. Use only when you specifically need the entire codebase content for large repositories.
     - `includePatterns`: (Optional) Specify files to include using fast-glob patterns. Multiple patterns can be comma-separated (e.g., "**/*.{js,ts}", "src/**,docs/**"). Only matching files will be processed.
     - `ignorePatterns`: (Optional) Specify additional files to exclude using fast-glob patterns. Multiple patterns can be comma-separated (e.g., "test/**,*.spec.js", "node_modules/**,dist/**"). These patterns supplement .gitignore, .ignore, and built-in exclusions.
+    - `outputPatterns`: (Optional) Per-file inclusion levels, mirroring the config-file `output.patterns` option. An array of `{ pattern, compress?, directoryStructureOnly? }` entries; the first matching pattern wins, `directoryStructureOnly` takes precedence over `compress`, and a match with neither flag forces full content (useful for exempting files from a global `compress`).
     - `topFilesLength`: (Optional, default: 10) Number of largest files by size to display in the metrics summary for codebase analysis.
 
 4. **read_repomix_output**: Read the contents of a Repomix-generated output file. Supports partial reading with line range specification for large files.
@@ -1168,6 +1213,9 @@ repomix --skill-generate
 # Generate with custom Skills name
 repomix --skill-generate my-project-reference
 
+# Generate with a custom project name in Skills descriptions
+repomix --skill-generate --skill-project-name "My Project"
+
 # Generate from remote repository
 repomix --remote https://github.com/user/repo --skill-generate
 ```
@@ -1268,7 +1316,7 @@ npx skills add yamadashy/repomix --skill repomix-explorer --agent openclaw
 For Hermes Agent, install the single-file skill with Hermes Agent's native skills command:
 
 ```bash
-hermes skills install https://raw.githubusercontent.com/yamadashy/repomix/main/.claude/skills/repomix-explorer/SKILL.md
+hermes skills install https://raw.githubusercontent.com/yamadashy/repomix/main/skills/repomix-explorer/SKILL.md
 ```
 
 #### What It Does
@@ -1376,10 +1424,13 @@ Here's an explanation of the configuration options:
 | Option                           | Description                                                                                                                  | Default                |
 |----------------------------------|------------------------------------------------------------------------------------------------------------------------------|------------------------|
 | `input.maxFileSize`              | Maximum file size in bytes to process. Files larger than this will be skipped                                                | `50000000`            |
+| `input.processors`               | Ordered array of `{ pattern, command, timeout?, onError? }` entries that run an external command to transform matching files before packing (e.g. JSON→TOON). First matching glob wins. Runs arbitrary commands, so it runs only for local CLI runs (and remote repos with `--remote-trust-config`). See [File Processors](#file-processors) | Not set |
 | `output.filePath`                | The name of the output file                                                                                                  | `"repomix-output.xml"` |
 | `output.style`                   | The style of the output (`xml`, `markdown`, `json`, `plain`)                                                                 | `"xml"`                |
+| `output.filePathStyle`           | How file paths are shown in output (`target-relative` keeps paths relative to each target root, `cwd-relative` keeps paths relative to the current working directory) | `"target-relative"`    |
 | `output.parsableStyle`           | Whether to escape the output based on the chosen style schema. Note that this can increase token count.                      | `false`                |
 | `output.compress`                | Whether to perform intelligent code extraction to reduce token count                                                         | `false`                |
+| `output.patterns`                | Per-file inclusion levels. An ordered array of `{ pattern, compress?, directoryStructureOnly? }` entries; the first matching glob wins and overrides the global `output.compress` for that file. See [Per-file Inclusion Levels](#per-file-inclusion-levels-outputpatterns) | Not set |
 | `output.headerText`              | Custom text to include in the file header                                                                                    | `null`                 |
 | `output.instructionFilePath`     | Path to a file containing detailed custom instructions                                                                       | `null`                 |
 | `output.fileSummary`             | Whether to include a summary section at the beginning of the output                                                          | `true`                 |
@@ -1393,6 +1444,7 @@ Here's an explanation of the configuration options:
 | `output.splitOutput`             | Split output into multiple numbered files by maximum size per part (e.g., `1000000` for ~1MB). Keeps each file under the limit and avoids splitting files across parts | Not set                |
 | `output.topFilesLength`          | Number of top files to display in the summary. If set to 0, no summary will be displayed                                     | `5`                    |
 | `output.tokenCountTree`          | Whether to display file tree with token count summaries. Can be boolean or number (minimum token count threshold)           | `false`                |
+| `output.tokenBudget`             | Fail with a non-zero exit code when the packed output exceeds this many tokens. Acts as a guard for CI/agent context limits; the output is still generated | Not set                |
 | `output.includeEmptyDirectories` | Whether to include empty directories in the repository structure                                                             | `false`                |
 | `output.includeFullDirectoryStructure` | When using `include` patterns, whether to display the complete directory tree (respecting ignore patterns) while still processing only the included files. Provides full repository context for AI analysis | `false`                |
 | `output.git.sortByChanges`       | Whether to sort files by git change count (files with more changes appear at the bottom)                                     | `true`                 |
@@ -1438,13 +1490,23 @@ Example configuration:
 {
   "$schema": "https://repomix.com/schemas/latest/schema.json",
   "input": {
-    "maxFileSize": 50000000
+    "maxFileSize": 50000000,
+    // Optional: transform matching files with an external command before packing (local CLI only)
+    // "processors": [
+    //   { "pattern": "**/*.json", "command": "npx @toon-format/cli {file}" }
+    // ]
   },
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
+    // Optional: override the inclusion level per glob (first match wins)
+    // "patterns": [
+    //   { "pattern": "docs/**/*", "compress": true },
+    //   { "pattern": "website/**/*", "directoryStructureOnly": true }
+    // ],
     "headerText": "Custom header information for the packed file.",
     "fileSummary": true,
     "directoryStructure": true,
@@ -1453,10 +1515,11 @@ Example configuration:
     "removeEmptyLines": false,
     "topFilesLength": 5,
     "tokenCountTree": false, // or true, or a number like 10 for minimum token threshold
+    // "tokenBudget": 180000, // optional: fail when the packed output exceeds this many tokens
     "showLineNumbers": false,
     "truncateBase64": false,
     "copyToClipboard": false,
-    "splitOutput": null, // or a number like 1000000 for ~1MB per file
+    // "splitOutput": 1000000, // optional: split output into multiple ~1MB files
     "includeEmptyDirectories": false,
     "git": {
       "sortByChanges": true,
@@ -1602,6 +1665,42 @@ and YAML.
 Note: The comment removal process is conservative to avoid accidentally removing code. In complex cases, some comments
 might be retained.
 
+### File Processors
+
+`input.processors` runs an external command to transform a file's content **before** it is packed. Each entry targets files by glob (matched like `include`/`ignore`) and replaces the matching files' content with the command's standard output — useful for token-reducing or format-converting transforms such as JSON→[TOON](https://github.com/toon-format/toon), SVG minification, or notebook→script conversion.
+
+```json5
+{
+  "input": {
+    "processors": [
+      { "pattern": "**/*.json", "command": "npx @toon-format/cli {file}" }
+    ]
+  }
+}
+```
+
+The `{file}` placeholder (required) is replaced with a temp file holding the file's content, and the command's stdout becomes the new content. Patterns are evaluated in order and the **first match wins** (one processor per file). Each entry also accepts `timeout` (ms, default `60000`) and `onError` (`"fail"` to abort the pack, default; `"skip"` to warn and keep the original content).
+
+Example commands (each is a `command` value paired with a suitable `pattern`):
+
+| Pattern | `command` | What it does |
+| --- | --- | --- |
+| `**/*.json` | `jq -c . {file}` | Compact JSON by stripping whitespace |
+| `**/*.json` | `npx @toon-format/cli {file}` | Convert JSON to [TOON](https://github.com/toon-format/toon), a compact token-efficient format |
+| `**/*.svg` | `npx svgo -i {file} -o -` | Minify SVG |
+| `**/*.ipynb` | `jupyter nbconvert --to script --stdout {file}` | Convert a Jupyter notebook to a plain Python script |
+
+Apply only one processor per file (first match wins), and make sure the tool it invokes is on your `PATH` (`npx`-based commands download it on first use).
+
+> [!WARNING]
+> File processors run **arbitrary commands** from your config file, so execution is default-deny:
+>
+> - Enabled **only for local CLI runs**, where Repomix assumes the config in your working directory is your own — the same trust boundary as an npm script or a Makefile. As with those, if you run `repomix` inside a repository you obtained from someone else **without reviewing its `repomix.config.json` first**, its processor commands will execute on your machine. Review the config of untrusted repositories before packing them.
+> - **Disabled** for the library API (`pack()` / `runCli()`), the MCP server, and the hosted [repomix.com](https://repomix.com).
+> - For remote repositories (`--remote`), the cloned config — and its processors — is trusted only when you explicitly pass `--remote-trust-config`; without it the remote config is not even loaded.
+>
+> Active processors are printed at startup and in error messages, so reference credentials via environment variables (e.g. `$TOKEN`), which are logged unexpanded, rather than inlining them. On timeout Repomix kills the command's shell, but a command that spawns its own long-lived background processes may leave them running. See the [configuration guide](https://repomix.com/guide/configuration#file-processors) for details.
+
 ## 🔍 Security Check
 
 Repomix includes a security check feature that uses [Secretlint](https://github.com/secretlint/secretlint) to detect
@@ -1700,7 +1799,7 @@ Upload the output file as an artifact:
     compress: true
 
 - name: Upload Repomix output
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@v7
   with:
     name: repomix-output
     path: repomix-output.txt
@@ -1723,7 +1822,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Pack repository with Repomix
         uses: yamadashy/repomix/.github/actions/repomix@main
@@ -1731,7 +1830,7 @@ jobs:
           output: repomix-output.xml
 
       - name: Upload Repomix output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: repomix-output.xml
           path: repomix-output.xml
