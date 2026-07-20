@@ -283,16 +283,16 @@ onMounted(() => {
   // If repository parameter exists and is valid, trigger packing automatically
   // Skip auto-execution for bots/crawlers to prevent unintended API calls
   // (e.g., Applebot executing JS on permalink URLs causes mass pack requests)
-  // if (urlParams.repo && isValidRemoteValue(urlParams.repo.trim()) && !isBot()) {
-  //   // Use nextTick to ensure all reactive values are properly initialized
-  //   nextTick(async () => {
-  //     try {
-  //       await handleSubmit();
-  //     } catch (error) {
-  //       console.error('Auto-execution failed:', error);
-  //     }
-  //   });
-  // }
+  if (urlParams.repo && isValidRemoteValue(urlParams.repo.trim()) && !isBot()) {
+    // Use nextTick to ensure all reactive values are properly initialized
+    nextTick(async () => {
+      try {
+        await handleSubmit();
+      } catch (error) {
+        console.error('Auto-execution failed:', error);
+      }
+    });
+  }
 });
 </script>
 
@@ -476,6 +476,18 @@ onMounted(() => {
   border-width: 8px;
   border-style: solid;
   border-color: #333 transparent transparent transparent;
+}
+
+/* The Turnstile widget is executed programmatically via execution: 'execute'.
+   The container must remain in the DOM (removing it prevents widget rendering)
+   but should not affect page layout or be visible. */
+.turnstile-container {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 </style>
