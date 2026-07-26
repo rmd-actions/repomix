@@ -26,6 +26,7 @@ description: "Girdi, çıktı, dosya seçimi, uzak depolar, yapılandırma, güv
 |---------|----------|
 | `-o, --output <file>` | Çıktı dosyası yolu (varsayılan: `repomix-output.xml`, stdout için `"-"` kullanın) |
 | `--style <style>` | Çıktı formatı: `xml`, `markdown`, `json` veya `plain` (varsayılan: `xml`) |
+| `--output-file-path-style <style>` | Çıktıda dosya yollarının gösterilme biçimi: `target-relative` veya `cwd-relative` (varsayılan: `target-relative`) |
 | `--parsable-style` | Geçerli XML/Markdown sağlamak için özel karakterleri kaçış karakteriyle işle (çıktı biçimlendirmeyi bozan kod içerdiğinde gereklidir) |
 | `--compress` | Tree-sitter ayrıştırmasını kullanarak temel kod yapısını (sınıflar, fonksiyonlar, arayüzler) çıkar |
 | `--output-show-line-numbers` | Çıktıda her satırın önüne satır numarası ekle |
@@ -61,7 +62,7 @@ description: "Girdi, çıktı, dosya seçimi, uzak depolar, yapılandırma, güv
 |---------|----------|
 | `--remote <url>` | Uzak bir depoyu klonla ve paketle (GitHub URL'si veya `kullanıcı/depo` formatı) |
 | `--remote-branch <name>` | Kullanılacak belirli dal, etiket veya commit (varsayılan: deponun varsayılan dalı) |
-| `--remote-trust-config` | Uzak depolardan yapılandırma dosyalarına güven ve yükle (güvenlik için varsayılan olarak devre dışı) |
+| `--remote-trust-config` | Uzak depolardan yapılandırma dosyalarına güven ve yükle. Güvenilen bir yapılandırma komut çalıştırabilir ve yerel dosyaları okuyabilir, bu yüzden bu seçeneği yalnızca tamamen güvendiğiniz depolar için kullanın (güvenlik için varsayılan olarak devre dışı). Etkileşimli bir terminalde yapılandırma gösterilir ve onay istenir |
 
 ## Yapılandırma Seçenekleri
 
@@ -86,8 +87,15 @@ description: "Girdi, çıktı, dosya seçimi, uzak depolar, yapılandırma, güv
 | Seçenek | Açıklama |
 |---------|----------|
 | `--skill-generate [name]` | Claude Agent Skills formatında çıktıyı `.claude/skills/<name>/` dizinine oluştur (ad belirtilmezse otomatik oluşturulur) |
+| `--skill-project-name <name>` | Oluşturulan Skills açıklamalarında kullanılan proje adını geçersiz kıl |
 | `--skill-output <path>` | Beceri çıktı dizin yolunu doğrudan belirt (konum istemini atlar) |
-| `-f, --force` | Tüm onay istemlerini atla (örn. beceri dizini üzerine yazma) |
+| `-f, --force` | Tüm onay istemlerini atla (beceri dizini üzerine yazma, uzak yapılandırma güveni) |
+
+## İzleme Modu Seçenekleri
+
+- `-w, --watch`: Dosya değişikliklerini izler ve otomatik olarak yeniden paketler. Yeni, değiştirilmiş ve silinmiş dosyalar algılanır, hızlı değişiklikler debounce edilir (300 ms) ve her yeniden oluşturmadan sonra bir zaman damgası yazdırılır. Durdurmak için `Ctrl+C` tuşlarına basın.
+
+İzleme modu yalnızca yerel dizinlerle çalışır, bu nedenle `--remote`, konumsal argüman olarak verilen uzak depo URL'si, `--stdout`, `--stdin`, `--split-output`, `--skill-generate` veya `--copy` ile birlikte kullanılamaz. Bu kısıtlamalar, seçenek ister komut satırında ister yapılandırma dosyanızda ayarlanmış olsun geçerlidir.
 
 ## İlgili Kaynaklar
 
@@ -130,6 +138,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # Remote repository with shorthand
 repomix --remote user/repo
 
+# Remote repository with shorthand (auto-detected, no --remote needed)
+repomix user/repo
+
 # Using stdin for file list
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -144,4 +155,8 @@ repomix --include-diffs --include-logs  # Include both diffs and logs
 # Token count analysis
 repomix --token-count-tree
 repomix --token-count-tree 1000  # Only show files/directories with 1000+ tokens
+
+# İzleme modu: dosyalar değiştiğinde otomatik olarak yeniden paketle
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```

@@ -353,6 +353,79 @@ describe('configLoad', () => {
       expect(merged.output.git.sortByChangesMaxCommits).toBe(100);
     });
 
+    test('should default output filePathStyle to target-relative', () => {
+      const merged = mergeConfigs(process.cwd(), {}, {});
+      expect(merged.output.filePathStyle).toBe('target-relative');
+    });
+
+    test('should merge output filePathStyle from file config', () => {
+      const merged = mergeConfigs(process.cwd(), { output: { filePathStyle: 'cwd-relative' } }, {});
+      expect(merged.output.filePathStyle).toBe('cwd-relative');
+    });
+
+    test('should let CLI output filePathStyle override file config', () => {
+      const merged = mergeConfigs(
+        process.cwd(),
+        { output: { filePathStyle: 'target-relative' } },
+        { output: { filePathStyle: 'cwd-relative' } },
+      );
+      expect(merged.output.filePathStyle).toBe('cwd-relative');
+    });
+
+    test('should preserve output.patterns from the file config through the merge', () => {
+      // Regression guard: output.patterns is declared only on the base/file schema
+      // member of repomixConfigMergedSchema's intersect (the default member's output
+      // does not declare it). If the intersect ever stopped merging per-schema
+      // outputs, config-file inclusion-level patterns would be silently dropped.
+      const fileConfig: RepomixConfigFile = {
+        output: {
+          patterns: [
+            { pattern: 'docs/**/*', compress: true },
+            { pattern: 'website/**/*', directoryStructureOnly: true },
+          ],
+        },
+      };
+
+      const merged = mergeConfigs(process.cwd(), fileConfig, {});
+
+      expect(merged.output.patterns).toEqual([
+        { pattern: 'docs/**/*', compress: true },
+        { pattern: 'website/**/*', directoryStructureOnly: true },
+      ]);
+    });
+
+    test('should preserve input.processors from the file config', () => {
+      const fileConfig: RepomixConfigFile = {
+        input: {
+          processors: [{ pattern: '**/*.json', command: 'toon {file}', timeout: 30000, onError: 'skip' }],
+        },
+      };
+
+      const merged = mergeConfigs(process.cwd(), fileConfig, {});
+
+      expect(merged.input.processors).toEqual([
+        { pattern: '**/*.json', command: 'toon {file}', timeout: 30000, onError: 'skip' },
+      ]);
+    });
+
+    test('should apply enableFileProcessors from the CLI config', () => {
+      const merged = mergeConfigs(process.cwd(), {}, { enableFileProcessors: true });
+      expect(merged.enableFileProcessors).toBe(true);
+    });
+
+    test('should ignore enableFileProcessors coming from the file config (gate is CLI-only)', () => {
+      // A malicious repo config must not be able to self-authorize command execution.
+      // mergeConfigs only reads the gate from the CLI config, never the file config.
+      const fileConfig = {
+        enableFileProcessors: true,
+        input: { processors: [{ pattern: '**/*', command: 'evil {file}' }] },
+      } as unknown as RepomixConfigFile;
+
+      const merged = mergeConfigs(process.cwd(), fileConfig, {});
+
+      expect(merged.enableFileProcessors).toBeUndefined();
+    });
+
     test('should not mutate defaultConfig', () => {
       const originalFilePath = defaultConfig.output.filePath;
       const fileConfig: RepomixConfigFile = {

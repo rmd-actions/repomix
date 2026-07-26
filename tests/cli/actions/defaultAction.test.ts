@@ -1,6 +1,7 @@
 import process from 'node:process';
 import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
-import { buildCliConfig, runDefaultAction } from '../../../src/cli/actions/defaultAction.js';
+import { buildCliConfig, buildMergedConfig, runDefaultAction } from '../../../src/cli/actions/defaultAction.js';
+import * as migrationAction from '../../../src/cli/actions/migrationAction.js';
 import type { CliOptions } from '../../../src/cli/types.js';
 import * as configLoader from '../../../src/config/configLoad.js';
 import * as fileStdin from '../../../src/core/file/fileStdin.js';
@@ -14,6 +15,7 @@ vi.mock('../../../src/config/configLoad');
 vi.mock('../../../src/core/file/packageJsonParse');
 vi.mock('../../../src/core/file/fileStdin');
 vi.mock('../../../src/shared/logger');
+vi.mock('../../../src/cli/actions/migrationAction');
 
 const mockSpinner = {
   start: vi.fn() as MockedFunction<() => void>,
@@ -118,6 +120,30 @@ describe('defaultAction', () => {
     expect(packager.pack).toHaveBeenCalled();
     expect(mockSpinner.start).toHaveBeenCalled();
     expect(mockSpinner.succeed).toHaveBeenCalled();
+  });
+
+  it('should not migrate legacy files when local config is skipped', async () => {
+    await buildMergedConfig('/tmp/remote-repository', { skipLocalConfig: true });
+
+    expect(migrationAction.runMigrationAction).not.toHaveBeenCalled();
+    expect(configLoader.loadFileConfig).toHaveBeenCalledWith('/tmp/remote-repository', null, {
+      skipLocalConfig: true,
+    });
+  });
+
+  it('should migrate legacy files when local config is used', async () => {
+    await buildMergedConfig('/tmp/local-repository', {});
+
+    expect(migrationAction.runMigrationAction).toHaveBeenCalledWith('/tmp/local-repository');
+  });
+
+  it('should not migrate a remote clone even when its config is trusted', async () => {
+    // A trusted remote sets skipLocalConfig: false, so skipMigration is what keeps
+    // migration from rewriting the clone's legacy repopack.config.json into a
+    // repomix.config.* the trust prompt never displayed.
+    await buildMergedConfig('/tmp/remote-repository', { skipLocalConfig: false, skipMigration: true });
+
+    expect(migrationAction.runMigrationAction).not.toHaveBeenCalled();
   });
 
   it('should handle custom include patterns', async () => {
@@ -274,6 +300,15 @@ describe('defaultAction', () => {
       expect(config.output?.style).toBe('xml');
     });
 
+    it('should handle custom output file path style', () => {
+      const options: CliOptions = {
+        outputFilePathStyle: 'cwd-relative',
+      };
+      const config = buildCliConfig(options);
+
+      expect(config.output?.filePathStyle).toBe('cwd-relative');
+    });
+
     it('should properly trim whitespace from comma-separated patterns', () => {
       const options = {
         include: 'src/**/*,  tests/**/*,   examples/**/*',
@@ -422,6 +457,44 @@ describe('defaultAction', () => {
 
       await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
         '--skill-generate cannot be used with --copy',
+      );
+    });
+
+    it('should throw error when --skill-project-name is used without --skill-generate', async () => {
+      const options: CliOptions = {
+        skillProjectName: 'Repomix',
+      };
+
+      await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
+        '--skill-project-name can only be used with --skill-generate',
+      );
+    });
+
+    it('should throw error when empty --skill-project-name is used without --skill-generate', async () => {
+      const options: CliOptions = {
+        skillProjectName: '',
+      };
+
+      await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
+        '--skill-project-name can only be used with --skill-generate',
+      );
+    });
+
+    it('should throw error when --skill-project-name is empty', async () => {
+      vi.mocked(configLoader.mergeConfigs).mockReturnValue(
+        createMockConfig({
+          cwd: process.cwd(),
+          skillGenerate: true,
+        }),
+      );
+
+      const options: CliOptions = {
+        skillGenerate: true,
+        skillProjectName: '   ',
+      };
+
+      await expect(runDefaultAction(['.'], process.cwd(), options)).rejects.toThrow(
+        '--skill-project-name cannot be empty',
       );
     });
   });

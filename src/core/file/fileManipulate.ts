@@ -70,6 +70,9 @@ const manipulators: Record<string, FileManipulator> = {
   '.java': new StripCommentsManipulator('java'),
   '.js': new StripCommentsManipulator('javascript'),
   '.jsx': new StripCommentsManipulator('javascript'),
+  '.mjs': new StripCommentsManipulator('javascript'),
+  '.cjs': new StripCommentsManipulator('javascript'),
+  '.mjsx': new StripCommentsManipulator('javascript'),
   '.kt': new StripCommentsManipulator('c'),
   '.less': new StripCommentsManipulator('less'),
   '.php': new StripCommentsManipulator('php'),
@@ -84,6 +87,9 @@ const manipulators: Record<string, FileManipulator> = {
   '.swift': new StripCommentsManipulator('swift'),
   '.ts': new StripCommentsManipulator('javascript'),
   '.tsx': new StripCommentsManipulator('javascript'),
+  '.mts': new StripCommentsManipulator('javascript'),
+  '.cts': new StripCommentsManipulator('javascript'),
+  '.mtsx': new StripCommentsManipulator('javascript'),
   '.xml': new StripCommentsManipulator('xml'),
   '.yaml': new StripCommentsManipulator('perl'),
   '.yml': new StripCommentsManipulator('perl'),
@@ -101,6 +107,10 @@ const manipulators: Record<string, FileManipulator> = {
 };
 
 export const getFileManipulator = (filePath: string): FileManipulator | null => {
-  const ext = path.extname(filePath);
+  // Match extensions case-insensitively so files with uppercase extensions
+  // (e.g. `Main.JS`, `style.CSS`, `App.PY`) still get their comments and empty
+  // lines stripped. This mirrors the lowercasing already done for tree-sitter
+  // language detection in languageParser.ts.
+  const ext = path.extname(filePath).toLowerCase();
   return manipulators[ext] || null;
 };

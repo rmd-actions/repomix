@@ -26,6 +26,7 @@ description: Referensi lengkap opsi CLI Repomix untuk input, output, pemilihan f
 |------|-----------|
 | `-o, --output <file>` | Jalur file output (default: `repomix-output.xml`, gunakan `"-"` untuk stdout) |
 | `--style <style>` | Format output: `xml`, `markdown`, `json`, atau `plain` (default: `xml`) |
+| `--output-file-path-style <style>` | Cara jalur file ditampilkan dalam output: `target-relative` atau `cwd-relative` (default: `target-relative`) |
 | `--parsable-style` | Escape karakter khusus untuk memastikan XML/Markdown yang valid (diperlukan saat output berisi kode yang merusak format) |
 | `--compress` | Mengekstrak struktur kode esensial (kelas, fungsi, interface) menggunakan parsing Tree-sitter |
 | `--output-show-line-numbers` | Menambahkan nomor baris di depan setiap baris dalam output |
@@ -61,7 +62,7 @@ description: Referensi lengkap opsi CLI Repomix untuk input, output, pemilihan f
 |------|-----------|
 | `--remote <url>` | Mengkloning dan mengemas repositori remote (URL GitHub atau format `user/repo`) |
 | `--remote-branch <name>` | Branch, tag, atau commit spesifik yang akan digunakan (default: branch default repositori) |
-| `--remote-trust-config` | Memercayai dan memuat file konfigurasi dari repositori remote (dinonaktifkan secara default untuk keamanan) |
+| `--remote-trust-config` | Memercayai dan memuat file konfigurasi dari repositori remote. Konfigurasi yang dipercaya dapat menjalankan perintah dan membaca file lokal, jadi gunakan opsi ini hanya untuk repositori yang sepenuhnya Anda percayai (dinonaktifkan secara default untuk keamanan). Pada terminal interaktif, konfigurasi ditampilkan dan konfirmasi diminta |
 
 ## Opsi Konfigurasi
 
@@ -86,8 +87,15 @@ description: Referensi lengkap opsi CLI Repomix untuk input, output, pemilihan f
 | Opsi | Deskripsi |
 |------|-----------|
 | `--skill-generate [name]` | Menghasilkan output format Claude Agent Skills ke direktori `.claude/skills/<name>/` (nama otomatis dihasilkan jika dihilangkan) |
+| `--skill-project-name <name>` | Mengganti nama proyek yang digunakan dalam deskripsi Skills yang dihasilkan |
 | `--skill-output <path>` | Menentukan jalur direktori output skill secara langsung (melewati prompt lokasi) |
-| `-f, --force` | Melewati semua prompt konfirmasi (mis. penimpaan direktori skill) |
+| `-f, --force` | Melewati semua prompt konfirmasi (penimpaan direktori skill, kepercayaan konfigurasi remote) |
+
+## Opsi Mode Watch
+
+- `-w, --watch`: Memantau perubahan file dan secara otomatis mengemas ulang. File baru, yang diubah, dan yang dihapus akan terdeteksi, perubahan cepat di-debounce (300 ms), dan stempel waktu dicetak setelah setiap pembangunan ulang. Tekan `Ctrl+C` untuk berhenti.
+
+Mode watch hanya bekerja dengan direktori lokal, sehingga tidak dapat dikombinasikan dengan `--remote`, URL repositori remote yang diberikan sebagai argumen posisional, `--stdout`, `--stdin`, `--split-output`, `--skill-generate`, atau `--copy`. Pembatasan ini berlaku baik opsi diatur di baris perintah maupun di file konfigurasi Anda.
 
 ## Sumber Daya Terkait
 
@@ -126,6 +134,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # Repositori remote dengan bentuk singkat
 repomix --remote user/repo
 
+# Repositori remote dengan bentuk singkat (terdeteksi otomatis, tanpa --remote)
+repomix user/repo
+
 # Daftar file menggunakan stdin
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -140,4 +151,8 @@ repomix --include-diffs --include-logs  # Sertakan diff dan log
 # Analisis jumlah token
 repomix --token-count-tree
 repomix --token-count-tree 1000  # Hanya tampilkan file/direktori dengan 1000+ token
+
+# Mode watch: kemas ulang otomatis saat file berubah
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```

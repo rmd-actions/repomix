@@ -26,6 +26,7 @@ description: 查阅 Repomix CLI 的所有选项，涵盖输入、输出、文件
 |------|------|
 | `-o, --output <file>` | 输出文件路径（默认：`repomix-output.xml`，使用 `"-"` 输出到标准输出） |
 | `--style <style>` | 输出格式：`xml`、`markdown`、`json` 或 `plain`（默认：`xml`） |
+| `--output-file-path-style <style>` | 输出中文件路径的显示方式：`target-relative` 或 `cwd-relative`（默认：`target-relative`） |
 | `--parsable-style` | 转义特殊字符以确保有效的 XML/Markdown（当输出包含破坏格式的代码时需要） |
 | `--compress` | 使用 Tree-sitter 解析提取基本代码结构（类、函数、接口） |
 | `--output-show-line-numbers` | 为输出中的每行添加行号前缀 |
@@ -61,7 +62,7 @@ description: 查阅 Repomix CLI 的所有选项，涵盖输入、输出、文件
 |------|------|
 | `--remote <url>` | 克隆并打包远程仓库（GitHub URL 或 `user/repo` 格式） |
 | `--remote-branch <name>` | 要使用的特定分支、标签或提交（默认：仓库的默认分支） |
-| `--remote-trust-config` | 信任并加载远程仓库的配置文件（出于安全考虑默认禁用） |
+| `--remote-trust-config` | 信任并加载远程仓库的配置文件。被信任的配置可以执行命令并读取本地文件，因此请仅对你完全信任的仓库使用（出于安全考虑默认禁用）。在交互式终端中会显示该配置并要求确认 |
 
 ## 配置选项
 
@@ -86,8 +87,15 @@ description: 查阅 Repomix CLI 的所有选项，涵盖输入、输出、文件
 | 选项 | 说明 |
 |------|------|
 | `--skill-generate [name]` | 生成 Claude Agent Skills 格式输出到 `.claude/skills/<name>/` 目录（省略名称时自动生成） |
+| `--skill-project-name <name>` | 覆盖生成的 Skills 描述中使用的项目名称 |
 | `--skill-output <path>` | 直接指定技能输出目录路径（跳过位置选择提示） |
-| `-f, --force` | 跳过所有确认提示（例如：技能目录覆盖） |
+| `-f, --force` | 跳过所有确认提示（技能目录覆盖、远程配置信任） |
+
+## 监视模式选项
+
+- `-w, --watch`: 监视文件更改并自动重新打包。会检测新增、修改和删除的文件，对快速连续的更改进行防抖处理（300 毫秒），并在每次重新构建后打印时间戳。按 `Ctrl+C` 停止。
+
+监视模式仅适用于本地目录，因此无法与 `--remote`、作为位置参数传入的远程仓库 URL、`--stdout`、`--stdin`、`--split-output`、`--skill-generate` 或 `--copy` 组合使用。无论该选项是在命令行还是在配置文件中设置，这些限制都适用。
 
 ## 相关资源
 
@@ -131,6 +139,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # 使用简写的远程仓库
 repomix --remote user/repo
 
+# 使用简写的远程仓库（自动检测，无需 --remote）
+repomix user/repo
+
 # 使用stdin的文件列表
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -139,5 +150,9 @@ echo -e "src/index.ts\nsrc/utils.ts" | repomix --stdin
 # Token 计数分析
 repomix --token-count-tree
 repomix --token-count-tree 1000  # 仅显示拥有 1000+ Token 的文件
+
+# 监视模式：文件更改时自动重新打包
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 

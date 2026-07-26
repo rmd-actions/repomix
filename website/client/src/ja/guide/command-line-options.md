@@ -26,6 +26,7 @@ description: 入力、出力、ファイル選択、リモートリポジトリ�
 |-----------|------|
 | `-o, --output <file>` | 出力ファイルパス（デフォルト：`repomix-output.xml`、標準出力には`"-"`を使用） |
 | `--style <style>` | 出力形式：`xml`、`markdown`、`json`、または`plain`（デフォルト：`xml`） |
+| `--output-file-path-style <style>` | 出力内でのファイルパスの表示方法：`target-relative` または `cwd-relative`（デフォルト：`target-relative`） |
 | `--parsable-style` | 特殊文字をエスケープして有効なXML/Markdownを保証（出力に形式を破損するコードが含まれる場合に必要） |
 | `--compress` | Tree-sitter解析を使用して重要なコード構造（クラス、関数、インターフェース）を抽出 |
 | `--output-show-line-numbers` | 出力の各行に行番号を付ける |
@@ -61,7 +62,7 @@ description: 入力、出力、ファイル選択、リモートリポジトリ�
 |-----------|------|
 | `--remote <url>` | リモートリポジトリをクローンしてパック（GitHub URLまたは`user/repo`形式） |
 | `--remote-branch <name>` | 使用する特定のブランチ、タグ、またはコミット（デフォルト：リポジトリのデフォルトブランチ） |
-| `--remote-trust-config` | リモートリポジトリの設定ファイルを信頼してロード（セキュリティのためデフォルトで無効） |
+| `--remote-trust-config` | リモートリポジトリの設定ファイルを信頼してロードします。信頼した設定はコマンドを実行したりローカルファイルを読み取ったりできるため、完全に信頼できるリポジトリでのみ使用してください（セキュリティのためデフォルトで無効）。対話的なターミナルでは、設定内容を表示して確認を求めます |
 
 ## 設定オプション
 
@@ -86,8 +87,15 @@ description: 入力、出力、ファイル選択、リモートリポジトリ�
 | オプション | 説明 |
 |-----------|------|
 | `--skill-generate [name]` | Claude Agent Skills形式の出力を`.claude/skills/<name>/`ディレクトリに生成（名前省略時は自動生成） |
+| `--skill-project-name <name>` | 生成されるスキルの説明で使用するプロジェクト名を上書き |
 | `--skill-output <path>` | スキル出力ディレクトリパスを直接指定（ロケーションプロンプトをスキップ） |
-| `-f, --force` | すべての確認プロンプトをスキップ（例：スキルディレクトリの上書き） |
+| `-f, --force` | すべての確認プロンプトをスキップ（スキルディレクトリの上書き、リモート設定の信頼） |
+
+## ウォッチモードオプション
+
+- `-w, --watch`: ファイルの変更を監視し、自動的に再パックします。新規・変更・削除されたファイルを検出し、短時間に連続する変更はデバウンス（300 ms）され、再構築のたびにタイムスタンプが出力されます。停止するには `Ctrl+C` を押します。
+
+ウォッチモードはローカルディレクトリでのみ動作するため、`--remote`、位置引数として渡すリモートリポジトリURL、`--stdout`、`--stdin`、`--split-output`、`--skill-generate`、`--copy` と組み合わせることはできません。これらの制限は、オプションをコマンドラインで指定した場合でも設定ファイルで指定した場合でも適用されます。
 
 ## 関連リソース
 
@@ -131,6 +139,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # ショートハンドを使用したリモートリポジトリ
 repomix --remote user/repo
 
+# ショートハンドを使用したリモートリポジトリ（自動検出、--remote 不要）
+repomix user/repo
+
 # stdinを使用したファイルリスト
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -139,5 +150,9 @@ echo -e "src/index.ts\nsrc/utils.ts" | repomix --stdin
 # トークン数分析
 repomix --token-count-tree
 repomix --token-count-tree 1000  # 1000以上のトークンを持つファイル/ディレクトリのみを表示
+
+# ウォッチモード: ファイル変更時に自動的に再パック
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 
