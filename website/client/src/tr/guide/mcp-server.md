@@ -20,6 +20,27 @@ repomix --mcp
 
 Bu komut Repomix'i MCP sunucusu modunda başlatır ve Model Context Protocol'ü destekleyen AI asistanları tarafından kullanılabilir hale getirir.
 
+## Sandbox Modu
+
+Varsayılan olarak MCP sunucusu, kendisini çalıştıran kullanıcının erişebildiği her yolu okuyabilir. Bu, güvenilen yerel bir asistan için uygundur, ancak sunucu güvenilmeyen bir istemciye veya ajana açıldığında çok geniş kapsamlıdır. `--sandbox` bayrağı, sunucunun dosya araçlarını tek bir çalışma alanı dizinine sınırlar:
+
+```bash
+# Geçerli çalışma dizinine sınırla
+repomix --mcp --sandbox
+
+# Belirli bir dizine sınırla
+repomix --mcp --sandbox path/to/project
+```
+
+Sandbox modu açıkken:
+
+- **Her yol, çalışma alanı köküne görelidir.** Mutlak yollar, `~`, `..` ve Windows sürücü/UNC yolları reddedilir; kökün dışına çözümlenen yollar (sembolik bağlantılar üzerinden olanlar dahil) atlanır. Sonuçlar ve hata mesajları da göreli olduğundan ana makine yolları açığa çıkmaz. Bu durum, aşağıdaki araç referansındaki `directory` ve `path` argümanları için de geçerlidir: sandbox modunda bu değerleri, tabloların normalde tanımladığı mutlak yollar yerine çalışma alanı köküne göreli olarak verin.
+- **Yalnızca salt okunur ve köke sınırlı araçlar kaydedilir:** `pack_codebase`, `read_repomix_output`, `grep_repomix_output`, `file_system_read_file` ve `file_system_read_directory`. Uzak paketleme, beceri oluşturma ve harici çıktıları ekleme devre dışı bırakılır; çünkü bunlar ağa erişir, dosya yazar veya keyfi yollara başvurur.
+
+Bu, işletim sistemi düzeyinde bir sandbox değil, araç yüzeyinin uygulama düzeyinde bir sınırlandırmasıdır (katmanlı savunma). Sunucuyu güvenilmeyen istemciler için barındırırken yine de platformunuzun olağan izolasyon yöntemlerini (konteynerler, ayrılmış kullanıcılar) kullanarak çalıştırın.
+
+`--sandbox`, yalnızca MCP sunucusunu etkiler; `--mcp` olmadan hiçbir etkisi yoktur.
+
 ## MCP Sunucularını Yapılandırma
 
 Repomix'i Claude gibi AI asistanlarıyla MCP sunucusu olarak kullanmak için MCP ayarlarını yapılandırmanız gerekir:
@@ -118,6 +139,7 @@ Bu araç, yerel bir kod dizinini AI analizine uygun birleşik bir XML dosyasına
 | `compress` | Hayır | `false` | Uygulama ayrıntılarını kaldırırken temel kod imzalarını ve yapısını çıkarmak için Tree-sitter sıkıştırmasını etkinleştirin. Token kullanımını yaklaşık %70 azaltırken anlam bütünlüğünü korur. `grep_repomix_output` artımlı içerik getirmeye izin verdiğinden genellikle gerekli değildir. |
 | `includePatterns` | Hayır | — | fast-glob desenleri kullanarak eklenecek dosyalar. Virgülle ayrılmış (örn. `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | Hayır | — | fast-glob desenleri kullanarak hariç tutulacak ek dosyalar. Virgülle ayrılmış (örn. `"test/**,*.spec.js"`). `.gitignore` ve yerleşik dışlamaları tamamlar. |
+| `outputPatterns` | Hayır | — | Yapılandırma dosyasındaki [`output.patterns`](./configuration.md) seçeneğini yansıtan, dosya başına dahil etme düzeyleri. `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` girdilerinden oluşan bir dizi. Eşleşen ilk desen kazanır; `directoryStructureOnly`, `compress`'e göre önceliklidir ve her iki bayrağın da bulunmadığı bir eşleşme tam içeriği zorunlu kılar (dosyaları genel bir `compress`'ten muaf tutmak için kullanışlıdır). Hedef deponun `repomix.config.json` dosyasındaki tüm `output.patterns` ayarlarının yerine geçer. |
 | `topFilesLength` | Hayır | `10` | Metrik özetinde gösterilecek boyuta göre en büyük dosya sayısı |
 | `style` | Hayır | `xml` | Çıktı format stili: `xml`, `markdown`, `json` veya `plain` |
 
@@ -125,12 +147,18 @@ Bu araç, yerel bir kod dizinini AI analizine uygun birleşik bir XML dosyasına
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+Yukarıdaki örnekte (`compress: true`, eşleşmeyen dosyalar için genel kural görevi görür), `src/core/` altındaki dosyalar tam içerikli tutulur, `docs/` altındaki dosyalar yalnızca dizin yapısında listelenir ve geri kalan her şey sıkıştırılır.
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ Bu araç, bir GitHub deposunu getirir, klonlar ve AI analizine uygun birleşik b
 | `compress` | Hayır | `false` | Uygulama ayrıntılarını kaldırırken temel kod imzalarını ve yapısını çıkarmak için Tree-sitter sıkıştırmasını etkinleştirin. Token kullanımını yaklaşık %70 azaltırken anlam bütünlüğünü korur. `grep_repomix_output` artımlı içerik getirmeye izin verdiğinden genellikle gerekli değildir. |
 | `includePatterns` | Hayır | — | fast-glob desenleri kullanarak eklenecek dosyalar. Virgülle ayrılmış (örn. `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | Hayır | — | fast-glob desenleri kullanarak hariç tutulacak ek dosyalar. Virgülle ayrılmış (örn. `"test/**,*.spec.js"`). `.gitignore` ve yerleşik dışlamaları tamamlar. |
+| `outputPatterns` | Hayır | — | Yapılandırma dosyasındaki [`output.patterns`](./configuration.md) seçeneğini yansıtan, dosya başına dahil etme düzeyleri. `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` girdilerinden oluşan bir dizi. Eşleşen ilk desen kazanır; `directoryStructureOnly`, `compress`'e göre önceliklidir ve her iki bayrağın da bulunmadığı bir eşleşme tam içeriği zorunlu kılar (dosyaları genel bir `compress`'ten muaf tutmak için kullanışlıdır). |
 | `topFilesLength` | Hayır | `10` | Metrik özetinde gösterilecek boyuta göre en büyük dosya sayısı |
 | `style` | Hayır | `xml` | Çıktı format stili: `xml`, `markdown`, `json` veya `plain` |
 
@@ -151,9 +180,13 @@ Bu araç, bir GitHub deposunu getirir, klonlar ve AI analizine uygun birleşik b
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```

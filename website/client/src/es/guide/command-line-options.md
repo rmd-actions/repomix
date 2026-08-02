@@ -26,6 +26,7 @@ description: "Consulta todas las opciones de la CLI de Repomix para entrada, sal
 |--------|-------------|
 | `-o, --output <file>` | Ruta del archivo de salida (por defecto: `repomix-output.xml`, usar `"-"` para stdout) |
 | `--style <style>` | Formato de salida: `xml`, `markdown`, `json` o `plain` (por defecto: `xml`) |
+| `--output-file-path-style <style>` | Cómo se muestran las rutas de archivos en la salida: `target-relative` o `cwd-relative` (por defecto: `target-relative`) |
 | `--parsable-style` | Escapar caracteres especiales para garantizar XML/Markdown válido (necesario cuando la salida contiene código que rompe el formato) |
 | `--compress` | Extraer la estructura esencial del código (clases, funciones, interfaces) usando análisis Tree-sitter |
 | `--output-show-line-numbers` | Agregar número de línea a cada línea en la salida |
@@ -61,7 +62,7 @@ description: "Consulta todas las opciones de la CLI de Repomix para entrada, sal
 |--------|-------------|
 | `--remote <url>` | Clonar y empaquetar un repositorio remoto (URL de GitHub o formato `user/repo`) |
 | `--remote-branch <name>` | Rama, etiqueta o commit específico a usar (por defecto: la rama por defecto del repositorio) |
-| `--remote-trust-config` | Confiar y cargar archivos de configuración de repositorios remotos (deshabilitado por defecto por seguridad) |
+| `--remote-trust-config` | Confiar y cargar archivos de configuración de repositorios remotos. Una configuración de confianza puede ejecutar comandos y leer archivos locales, así que úsala solo para repositorios en los que confíes plenamente (deshabilitado por defecto por seguridad). En una terminal interactiva, se muestra la configuración y se pide confirmación |
 
 ## Opciones de configuración
 
@@ -80,14 +81,22 @@ description: "Consulta todas las opciones de la CLI de Repomix para entrada, sal
 
 ## Opciones MCP
 - `--mcp`: Ejecutar como servidor Model Context Protocol para integración de herramientas de IA
+- `--sandbox [dir]`: (con `--mcp`) Confina las herramientas de archivos del servidor MCP a un directorio de espacio de trabajo (por defecto, el directorio de trabajo actual; ej: `--sandbox path/to/project`). Cada ruta es relativa a esa raíz, las rutas absolutas o del host se rechazan, y el empaquetado remoto, la generación de skills y la adjunción de salidas externas quedan deshabilitados. Consulta [Servidor MCP](/es/guide/mcp-server)
 
 ## Opciones de generación de Agent Skills
 
 | Opción | Descripción |
 |--------|-------------|
 | `--skill-generate [name]` | Generar salida en formato Claude Agent Skills en el directorio `.claude/skills/<name>/` (nombre autogenerado si se omite) |
+| `--skill-project-name <name>` | Sobrescribir el nombre del proyecto usado en las descripciones de Skills generadas |
 | `--skill-output <path>` | Especificar la ruta del directorio de salida de skills directamente (omite la solicitud de ubicación) |
-| `-f, --force` | Omitir todas las solicitudes de confirmación (ej: sobrescritura del directorio de skills) |
+| `-f, --force` | Omitir todas las solicitudes de confirmación (sobrescritura del directorio de skills, confianza en la configuración remota) |
+
+## Opciones del modo de observación
+
+- `-w, --watch`: Observa los cambios en los archivos y vuelve a empaquetar automáticamente. Se detectan los archivos nuevos, modificados y eliminados, los cambios rápidos se agrupan mediante debounce (300 ms) y se imprime una marca de tiempo después de cada reconstrucción. Pulsa `Ctrl+C` para detener.
+
+El modo de observación solo funciona con directorios locales, por lo que no se puede combinar con `--remote`, una URL de repositorio remoto pasada como argumento posicional, `--stdout`, `--stdin`, `--split-output`, `--skill-generate` o `--copy`. Estas restricciones se aplican tanto si la opción se establece en la línea de comandos como en tu archivo de configuración.
 
 ## Recursos relacionados
 
@@ -126,6 +135,9 @@ repomix --remote https://github.com/user/repo/commit/836abcd7335137228ad77feb286
 # Repositorio remoto con forma abreviada
 repomix --remote user/repo
 
+# Repositorio remoto con forma abreviada (detectado automáticamente, sin --remote)
+repomix user/repo
+
 # Lista de archivos usando stdin
 find src -name "*.ts" -type f | repomix --stdin
 git ls-files "*.js" | repomix --stdin
@@ -140,5 +152,9 @@ repomix --include-diffs --include-logs  # Incluir tanto diffs como logs
 # Análisis de conteo de tokens
 repomix --token-count-tree
 repomix --token-count-tree 1000  # Solo mostrar archivos/directorios con 1000+ tokens
+
+# Modo de observación: volver a empaquetar automáticamente al cambiar los archivos
+repomix --watch
+repomix -w --include "src/**/*.ts"
 ```
 

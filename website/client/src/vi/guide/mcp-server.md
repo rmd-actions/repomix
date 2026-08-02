@@ -20,6 +20,27 @@ repomix --mcp
 
 Điều này khởi động Repomix ở chế độ máy chủ MCP, làm cho nó có sẵn cho các trợ lý AI hỗ trợ Model Context Protocol.
 
+## Chế độ Sandbox
+
+Theo mặc định, máy chủ MCP có thể đọc bất kỳ đường dẫn nào mà người dùng host có thể truy cập. Điều này thuận tiện cho một trợ lý cục bộ đáng tin cậy, nhưng lại quá rộng khi máy chủ được expose cho một client hoặc agent không đáng tin cậy. Flag `--sandbox` giới hạn các công cụ tệp của máy chủ trong một thư mục workspace duy nhất:
+
+```bash
+# Giới hạn trong thư mục làm việc hiện tại
+repomix --mcp --sandbox
+
+# Giới hạn trong một thư mục cụ thể
+repomix --mcp --sandbox path/to/project
+```
+
+Khi chế độ sandbox được bật:
+
+- **Mọi đường dẫn đều tương đối với gốc workspace.** Đường dẫn tuyệt đối, `~`, `..`, và đường dẫn ổ đĩa/UNC của Windows đều bị từ chối, và các đường dẫn phân giải ra bên ngoài gốc (kể cả thông qua symlink) đều bị loại bỏ. Kết quả và thông báo lỗi cũng tương đối, vì vậy đường dẫn trên máy host không bị lộ ra. Điều này áp dụng cho các tham số `directory` và `path` trong phần công cụ tham chiếu bên dưới: ở chế độ sandbox, hãy truyền chúng dưới dạng tương đối với gốc workspace, thay vì đường dẫn tuyệt đối như các bảng đó thường mô tả.
+- **Chỉ các công cụ chỉ-đọc, bị giới hạn trong thư mục gốc mới được đăng ký:** `pack_codebase`, `read_repomix_output`, `grep_repomix_output`, `file_system_read_file`, và `file_system_read_directory`. Đóng gói từ xa, tạo skill, và đính kèm đầu ra bên ngoài đều bị vô hiệu hóa, vì chúng cần truy cập mạng, ghi tệp, hoặc tham chiếu đến các đường dẫn tùy ý.
+
+Đây là một biện pháp giới hạn ở cấp độ ứng dụng đối với bề mặt công cụ (phòng thủ theo chiều sâu), không phải một sandbox ở cấp độ hệ điều hành. Khi host máy chủ cho các client không đáng tin cậy, bạn vẫn nên chạy nó dưới cơ chế cách ly thông thường của nền tảng (container, người dùng riêng biệt).
+
+`--sandbox` chỉ ảnh hưởng đến máy chủ MCP; nó không có tác dụng gì nếu không có `--mcp`.
+
 ## Cấu hình Máy chủ MCP
 
 Để sử dụng Repomix như một máy chủ MCP với các trợ lý AI như Claude, bạn cần cấu hình các thiết lập MCP:
@@ -118,6 +139,7 @@ Công cụ này đóng gói một thư mục code cục bộ thành một file X
 | `compress` | Không | `false` | Kích hoạt nén Tree-sitter để trích xuất các chữ ký code cần thiết và cấu trúc trong khi loại bỏ chi tiết triển khai. Giảm sử dụng token khoảng 70% trong khi bảo toàn ý nghĩa ngữ nghĩa. Thường không cần thiết vì `grep_repomix_output` cho phép truy xuất nội dung tăng dần. |
 | `includePatterns` | Không | — | File để bao gồm sử dụng pattern fast-glob. Tách bằng dấu phẩy (ví dụ: `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | Không | — | File bổ sung để loại trừ sử dụng pattern fast-glob. Tách bằng dấu phẩy (ví dụ: `"test/**,*.spec.js"`). Bổ sung cho `.gitignore` và loại trừ tích hợp. |
+| `outputPatterns` | Không | — | Các cấp độ bao gồm theo từng file, phản ánh tùy chọn [`output.patterns`](./configuration.md) trong file cấu hình. Một mảng các mục `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }`. Pattern khớp đầu tiên sẽ được áp dụng; `directoryStructureOnly` được ưu tiên hơn `compress`, và một kết quả khớp không có cờ nào trong hai cờ này sẽ buộc hiển thị nội dung đầy đủ (hữu ích để loại trừ file khỏi `compress` toàn cục). Ghi đè mọi `output.patterns` từ `repomix.config.json` của repository đích. |
 | `topFilesLength` | Không | `10` | Số lượng file lớn nhất theo kích thước để hiển thị trong tóm tắt metrics |
 | `style` | Không | `xml` | Kiểu định dạng đầu ra: `xml`, `markdown`, `json`, hoặc `plain` |
 
@@ -125,12 +147,18 @@ Công cụ này đóng gói một thư mục code cục bộ thành một file X
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+Với ví dụ trên (`compress: true` đóng vai trò là phương án bao quát cho các file không khớp), các file trong `src/core/` được giữ nguyên nội dung đầy đủ, các file trong `docs/` chỉ được liệt kê trong cấu trúc thư mục, và mọi thứ còn lại đều được nén.
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ Công cụ này lấy, clone và đóng gói một repository GitHub thành mộ
 | `compress` | Không | `false` | Kích hoạt nén Tree-sitter để trích xuất các chữ ký code cần thiết và cấu trúc trong khi loại bỏ chi tiết triển khai. Giảm sử dụng token khoảng 70% trong khi bảo toàn ý nghĩa ngữ nghĩa. Thường không cần thiết vì `grep_repomix_output` cho phép truy xuất nội dung tăng dần. |
 | `includePatterns` | Không | — | File để bao gồm sử dụng pattern fast-glob. Tách bằng dấu phẩy (ví dụ: `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | Không | — | File bổ sung để loại trừ sử dụng pattern fast-glob. Tách bằng dấu phẩy (ví dụ: `"test/**,*.spec.js"`). Bổ sung cho `.gitignore` và loại trừ tích hợp. |
+| `outputPatterns` | Không | — | Các cấp độ bao gồm theo từng file, phản ánh tùy chọn [`output.patterns`](./configuration.md) trong file cấu hình. Một mảng các mục `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }`. Pattern khớp đầu tiên sẽ được áp dụng; `directoryStructureOnly` được ưu tiên hơn `compress`, và một kết quả khớp không có cờ nào trong hai cờ này sẽ buộc hiển thị nội dung đầy đủ (hữu ích để loại trừ file khỏi `compress` toàn cục). |
 | `topFilesLength` | Không | `10` | Số lượng file lớn nhất theo kích thước để hiển thị trong tóm tắt metrics |
 | `style` | Không | `xml` | Kiểu định dạng đầu ra: `xml`, `markdown`, `json`, hoặc `plain` |
 
@@ -151,9 +180,13 @@ Công cụ này lấy, clone và đóng gói một repository GitHub thành mộ
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```

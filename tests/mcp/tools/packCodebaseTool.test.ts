@@ -28,6 +28,7 @@ describe('PackCodebaseTool', () => {
     compress?: boolean;
     includePatterns?: string;
     ignorePatterns?: string;
+    outputPatterns?: { pattern: string; compress?: boolean; directoryStructureOnly?: boolean }[];
     topFilesLength?: number;
   }) => Promise<CallToolResult>;
 
@@ -138,6 +139,26 @@ describe('PackCodebaseTool', () => {
     );
   });
 
+  test('should pass outputPatterns through to runCli', async () => {
+    const testDir = '/test/project';
+    const outputPatterns = [
+      { pattern: 'src/core/**' },
+      { pattern: 'docs/**/*', compress: true },
+      { pattern: 'website/**/*', directoryStructureOnly: true },
+    ];
+
+    await toolHandler({ directory: testDir, compress: true, outputPatterns });
+
+    expect(runCli).toHaveBeenCalledWith(
+      ['.'],
+      testDir,
+      expect.objectContaining({
+        compress: true,
+        outputPatterns,
+      }),
+    );
+  });
+
   test('should handle CLI execution failure', async () => {
     const testDir = '/test/project';
     vi.mocked(runCli).mockResolvedValue(undefined);
@@ -180,5 +201,16 @@ describe('PackCodebaseTool', () => {
     expect(content.type).toBe('text');
     const parsedResult = JSON.parse((content as { type: 'text'; text: string }).text);
     expect(parsedResult.errorMessage).toBe('Workspace creation failed');
+  });
+
+  test('rejects a directory outside the allowed root when sandboxed', async () => {
+    const server = { registerTool: vi.fn().mockReturnThis() } as unknown as McpServer;
+    registerPackCodebaseTool(server, { sandboxed: true, root: '/allowed/dir' });
+    const handler = (server.registerTool as ReturnType<typeof vi.fn>).mock.calls[0][2];
+
+    const result = await handler({ directory: '../../etc', compress: false, topFilesLength: 10, style: 'xml' });
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toContain('relative to workspace root');
   });
 });

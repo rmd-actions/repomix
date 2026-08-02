@@ -1,8 +1,10 @@
+import * as fs from 'node:fs/promises';
+import path from 'node:path';
 import process from 'node:process';
 import { Option, program } from 'commander';
 import pc from 'picocolors';
 import { getVersion } from '../core/file/packageJsonParse.js';
-import { isExplicitRemoteUrl } from '../core/git/gitRemoteUrl.js';
+import { isExplicitRemoteUrl, isValidShorthand } from '../core/git/gitRemoteUrl.js';
 import { handleError, RepomixError } from '../shared/errorHandle.js';
 import { logger, repomixLogLevels } from '../shared/logger.js';
 import { parseHumanSizeToBytes } from '../shared/sizeParse.js';
@@ -40,6 +42,9 @@ const semanticSuggestionMap: Record<string, string[]> = {
   console: ['--stdout'],
   terminal: ['--stdout'],
   pipe: ['--stdin'],
+  monitor: ['--watch'],
+  live: ['--watch'],
+  auto: ['--watch'],
 };
 
 export const run = async () => {
@@ -96,6 +101,12 @@ export const run = async () => {
       .optionsGroup('Repomix Output Options')
       .option('-o, --output <file>', 'Output file path (default: repomix-output.xml, use "-" for stdout)')
       .option('--style <type>', 'Output format: xml, markdown, json, or plain (default: xml)')
+      .addOption(
+        new Option(
+          '--output-file-path-style <style>',
+          'How file paths are shown in output: target-relative or cwd-relative (default: target-relative)',
+        ).choices(['target-relative', 'cwd-relative']),
+      )
       .option(
         '--parsable-style',
         'Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting)',
@@ -156,7 +167,7 @@ export const run = async () => {
       .option('--remote-branch <name>', "Specific branch, tag, or commit to use (default: repository's default branch)")
       .option(
         '--remote-trust-config',
-        'Trust and load config files from remote repositories (disabled by default for security)',
+        'Trust and load config files from remote repositories (disabled by default for security; asks for confirmation on an interactive terminal)',
       )
       // Configuration Options
       .optionsGroup('Configuration Options')
@@ -185,14 +196,22 @@ export const run = async () => {
       // MCP
       .optionsGroup('MCP')
       .option('--mcp', 'Run as Model Context Protocol server for AI tool integration')
+      .option(
+        '--sandbox [dir]',
+        "With --mcp: confine the MCP server's file tools to a workspace directory (defaults to the working directory; e.g. --sandbox path/to/project). Every path is relative to that root, absolute/host paths are refused, and remote packing, skill generation, and attaching external outputs are disabled.",
+      )
       // Skill Generation
       .optionsGroup('Skill Generation (Experimental)')
       .option(
         '--skill-generate [name]',
         'Generate Claude Agent Skills format output to .claude/skills/<name>/ directory (name auto-generated if omitted)',
       )
+      .option('--skill-project-name <name>', 'Override the project name used in generated Skills descriptions')
       .option('--skill-output <path>', 'Specify skill output directory path directly (skips location prompt)')
-      .option('-f, --force', 'Skip all confirmation prompts (currently: skill directory overwrite)')
+      .option('-f, --force', 'Skip all confirmation prompts (skill directory overwrite, remote config trust)')
+      // Watch Mode
+      .optionsGroup('Watch Mode')
+      .option('-w, --watch', 'Watch for file changes and automatically re-pack')
       .action(commanderActionEndpoint);
 
     // Custom error handling function
@@ -232,7 +251,85 @@ export const run = async () => {
 };
 
 const commanderActionEndpoint = async (directories: string[], options: CliOptions = {}) => {
-  await runCli(directories, process.cwd(), options);
+  // Auto-enable file processors for real CLI invocations only. Library callers
+  // (`runCli`/`pack`) and MCP tools bypass this endpoint, so they default to OFF.
+  // Remote runs downgrade this based on --remote-trust-config in runRemoteAction.
+  await runCli(directories, process.cwd(), { enableFileProcessors: true, ...options });
+};
+
+/**
+ * Validates flags that cannot be combined with --watch. Runs before log-level
+ * changes so error messages are not suppressed by --quiet/--stdout.
+ */
+const validateWatchOptions = (directories: string[], options: CliOptions): void => {
+  if (!options.watch) {
+    return;
+  }
+  if (options.remote) {
+    throw new RepomixError('--watch cannot be used with --remote. Watch mode only works with local directories.');
+  }
+  if (options.stdout) {
+    throw new RepomixError('--watch cannot be used with --stdout. Watch mode writes to a file.');
+  }
+  if (options.stdin) {
+    throw new RepomixError('--watch cannot be used with --stdin. Watch mode discovers files automatically.');
+  }
+  if (options.copy) {
+    throw new RepomixError(
+      '--watch cannot be used with --copy. Watch mode re-packs on every change, which would repeatedly overwrite the clipboard.',
+    );
+  }
+  if (options.splitOutput) {
+    throw new RepomixError(
+      '--watch cannot be used with --split-output. Watch mode does not yet support split output files.',
+    );
+  }
+  if (options.skillGenerate !== undefined) {
+    throw new RepomixError(
+      '--watch cannot be used with --skill-generate. Watch mode does not support skill generation.',
+    );
+  }
+  if (directories.length === 1 && isExplicitRemoteUrl(directories[0])) {
+    throw new RepomixError('--watch cannot be used with remote URLs. Watch mode only works with local directories.');
+  }
+};
+
+/**
+ * Canonicalize the --sandbox workspace root for the always-on path guard. realpath
+ * resolves symlinks (e.g. macOS /tmp -> /private/tmp) so the guard, output
+ * virtualization, and error scrubbing all agree with the realpaths resolveWithinRoot
+ * returns; a lexical-only root would silently weaken every guard that compares
+ * canonical child paths against it.
+ *
+ * Windows quirk: fs.realpath throws EPERM on some perfectly accessible directories
+ * (notably the 8.3 short-name temp path C:\Users\RUNNER~1\...). resolveWithinRoot
+ * already tolerates this by falling back to the lexical root, so match it here: when
+ * realpath fails but the directory genuinely exists, use the lexical (already
+ * absolute) root instead of refusing to start. A truly missing/inaccessible root
+ * still fails closed. The kernel sandbox grants on the directory OBJECT, not its
+ * name, so a short-name lexical root is confined identically — and because the guard
+ * canonicalizes root and candidates with the same realpath+lexical-fallback, they
+ * stay consistent.
+ */
+export const canonicalizeSandboxRoot = async (
+  requestedRoot: string,
+  deps = { realpath: (p: string) => fs.realpath(p), stat: (p: string) => fs.stat(p) },
+): Promise<string> => {
+  try {
+    return await deps.realpath(requestedRoot);
+  } catch (realpathError) {
+    try {
+      if ((await deps.stat(requestedRoot)).isDirectory()) {
+        return path.resolve(requestedRoot);
+      }
+    } catch {
+      // Directory is genuinely missing/inaccessible — fall through to fail closed.
+    }
+    const message = realpathError instanceof Error ? realpathError.message : String(realpathError);
+    throw new RepomixError(
+      `--sandbox workspace directory could not be resolved (${message}). Ensure it exists and is accessible.`,
+    );
+  }
 };
 
 export const runCli = async (directories: string[], cwd: string, options: CliOptions) => {
@@ -242,6 +339,9 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
   if (isForceStdoutMode) {
     options.stdout = true;
   }
+
+  // Validate --watch conflicts early, before log level changes can suppress error messages
+  validateWatchOptions(directories, options);
 
   // Set log level based on verbose and quiet flags
   if (options.quiet) {
@@ -261,9 +361,21 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
   logger.trace('cwd:', cwd);
   logger.trace('options:', options);
 
+  const sandboxed = options.sandbox != null && options.sandbox !== false;
+
+  if (sandboxed && !options.mcp) {
+    logger.warn('--sandbox has no effect without --mcp; it only confines the MCP server.');
+  }
+
   if (options.mcp) {
+    // A string value of --sandbox is the workspace dir to confine to; otherwise use cwd.
+    const requestedRoot = typeof options.sandbox === 'string' ? path.resolve(cwd, options.sandbox) : cwd;
+    // Canonicalize the root so the guard/virtualization/error-scrubbing agree with the
+    // realpaths resolveWithinRoot returns. Runs before any agent connects, so surfacing
+    // the operator's own path in a resolution error is fine.
+    const sandboxRoot = sandboxed ? await canonicalizeSandboxRoot(requestedRoot) : requestedRoot;
     const { runMcpAction } = await import('./actions/mcpAction.js');
-    return await runMcpAction();
+    return await runMcpAction({ sandboxed, cwd: sandboxRoot });
   }
 
   if (options.version) {
@@ -294,6 +406,40 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
     logger.trace(`Auto-detected remote URL from positional argument: ${directories[0]}`);
     const { runRemoteAction } = await import('./actions/remoteAction.js');
     return await runRemoteAction(directories[0], options);
+  }
+
+  if (options.watch) {
+    const { runWatchAction } = await import('./actions/watchAction.js');
+    return await runWatchAction(directories, cwd, options);
+  }
+
+  // Auto-detect GitHub shorthand (owner/repo) in positional arguments.
+  // Shorthand is ambiguous with relative local paths, so it is only treated as remote when:
+  //   1. the argument does not exist as a local path, and
+  //   2. the repository is confirmed reachable on GitHub (HEAD-only `git ls-remote` probe).
+  // A mistyped local path (e.g. `src/uitls`) fails the probe and falls through to the
+  // regular local-path handling instead of triggering an unintended clone attempt.
+  // Skipped in stdin mode, where positional directory arguments are rejected.
+  if (directories.length === 1 && !options.stdin && isValidShorthand(directories[0])) {
+    const localPathExists = await fs.access(path.resolve(cwd, directories[0])).then(
+      () => true,
+      // EACCES/EPERM mean the path exists but is inaccessible — keep local-path precedence
+      // and only fall through to the remote probe when the path is truly missing.
+      (error: NodeJS.ErrnoException) => !['ENOENT', 'ENOTDIR'].includes(error.code ?? ''),
+    );
+    if (!localPathExists) {
+      const { checkRemoteRepoExists } = await import('../core/git/gitRemoteHandle.js');
+      if (await checkRemoteRepoExists(`https://github.com/${directories[0]}.git`)) {
+        logger.log(
+          pc.dim(
+            `Detected GitHub repository shorthand: ${directories[0]} (prefix with ./ to treat it as a local path)\n`,
+          ),
+        );
+        const { runRemoteAction } = await import('./actions/remoteAction.js');
+        return await runRemoteAction(directories[0], options);
+      }
+      logger.trace(`Argument matches owner/repo shorthand but is not a reachable GitHub repository: ${directories[0]}`);
+    }
   }
 
   const { runDefaultAction } = await import('./actions/defaultAction.js');

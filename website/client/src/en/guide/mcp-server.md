@@ -20,6 +20,27 @@ repomix --mcp
 
 This starts Repomix in MCP server mode, making it available for AI assistants that support the Model Context Protocol.
 
+## Sandbox Mode
+
+By default the MCP server can read any path the host user can. That is convenient for a trusted local assistant, but too broad when the server is exposed to an untrusted client or agent. The `--sandbox` flag confines the server's file tools to a single workspace directory:
+
+```bash
+# Confine to the current working directory
+repomix --mcp --sandbox
+
+# Confine to a specific directory
+repomix --mcp --sandbox path/to/project
+```
+
+When sandbox mode is on:
+
+- **Every path is relative to the workspace root.** Absolute paths, `~`, `..`, and Windows drive/UNC paths are refused, and paths that resolve outside the root (including through symlinks) are dropped. Results and error messages are relative too, so host paths are not exposed. This applies to the `directory` and `path` arguments in the tool reference below: in sandbox mode, pass them relative to the workspace root, not as the absolute paths those tables otherwise describe.
+- **Only read-only, root-confined tools are registered:** `pack_codebase`, `read_repomix_output`, `grep_repomix_output`, `file_system_read_file`, and `file_system_read_directory`. Remote packing, skill generation, and attaching external outputs are disabled, since they reach the network, write files, or reference arbitrary paths.
+
+This is an application-level confinement of the tool surface (defense in depth), not an OS-level sandbox. When hosting the server for untrusted clients, still run it under your platform's usual isolation (containers, dedicated users).
+
+`--sandbox` only affects the MCP server; it has no effect without `--mcp`.
+
 ## Configuring MCP Servers
 
 To use Repomix as an MCP server with AI assistants like Claude, you need to configure the MCP settings:
@@ -118,6 +139,7 @@ This tool packages a local code directory into a consolidated XML file for AI an
 | `compress` | No | `false` | Enable Tree-sitter compression to extract essential code signatures and structure while removing implementation details. Reduces token usage by ~70% while preserving semantic meaning. Generally not needed since `grep_repomix_output` allows incremental content retrieval. |
 | `includePatterns` | No | — | Files to include using fast-glob patterns. Comma-separated (e.g., `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | No | — | Additional files to exclude using fast-glob patterns. Comma-separated (e.g., `"test/**,*.spec.js"`). Supplements `.gitignore` and built-in exclusions. |
+| `outputPatterns` | No | — | Per-file inclusion levels, mirroring the config-file [`output.patterns`](./configuration.md) option. An array of `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` entries. The first matching pattern wins; `directoryStructureOnly` takes precedence over `compress`, and a match with neither flag forces full content (useful for exempting files from a global `compress`). Overrides any `output.patterns` from the target repository's `repomix.config.json`. |
 | `topFilesLength` | No | `10` | Number of largest files by size to display in the metrics summary |
 | `style` | No | `xml` | Output format style: `xml`, `markdown`, `json`, or `plain` |
 
@@ -125,12 +147,18 @@ This tool packages a local code directory into a consolidated XML file for AI an
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+With the example above — where `compress: true` acts as the catch-all for unmatched files — files under `src/core/` are kept at full content, files under `docs/` are listed in the directory structure only, and everything else is compressed.
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ This tool fetches, clones, and packages a GitHub repository into a consolidated 
 | `compress` | No | `false` | Enable Tree-sitter compression to extract essential code signatures and structure while removing implementation details. Reduces token usage by ~70% while preserving semantic meaning. Generally not needed since `grep_repomix_output` allows incremental content retrieval. |
 | `includePatterns` | No | — | Files to include using fast-glob patterns. Comma-separated (e.g., `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | No | — | Additional files to exclude using fast-glob patterns. Comma-separated (e.g., `"test/**,*.spec.js"`). Supplements `.gitignore` and built-in exclusions. |
+| `outputPatterns` | No | — | Per-file inclusion levels, mirroring the config-file [`output.patterns`](./configuration.md) option. An array of `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` entries. The first matching pattern wins; `directoryStructureOnly` takes precedence over `compress`, and a match with neither flag forces full content (useful for exempting files from a global `compress`). |
 | `topFilesLength` | No | `10` | Number of largest files by size to display in the metrics summary |
 | `style` | No | `xml` | Output format style: `xml`, `markdown`, `json`, or `plain` |
 
@@ -151,9 +180,13 @@ This tool fetches, clones, and packages a GitHub repository into a consolidated 
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```

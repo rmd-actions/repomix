@@ -20,6 +20,27 @@ repomix --mcp
 
 Esto inicia Repomix en modo servidor MCP, haciéndolo disponible para asistentes de IA que soporten el Model Context Protocol.
 
+## Modo sandbox
+
+De forma predeterminada, el servidor MCP puede leer cualquier ruta a la que el usuario del host tenga acceso. Esto resulta conveniente para un asistente local de confianza, pero es demasiado amplio cuando el servidor se expone a un cliente o agente no confiable. La opción `--sandbox` confina las herramientas de archivos del servidor a un único directorio de espacio de trabajo:
+
+```bash
+# Confinar al directorio de trabajo actual
+repomix --mcp --sandbox
+
+# Confinar a un directorio específico
+repomix --mcp --sandbox path/to/project
+```
+
+Cuando el modo sandbox está activado:
+
+- **Cada ruta es relativa a la raíz del espacio de trabajo.** Las rutas absolutas, `~`, `..` y las rutas de unidad/UNC de Windows se rechazan, y las rutas que se resuelven fuera de la raíz (incluso a través de enlaces simbólicos) se descartan. Los resultados y los mensajes de error también son relativos, de modo que las rutas del host no quedan expuestas. Esto se aplica a los argumentos `directory` y `path` de la referencia de herramientas a continuación: en modo sandbox, pásalos como rutas relativas a la raíz del espacio de trabajo, no como las rutas absolutas que esas tablas describen en los demás casos.
+- **Solo se registran herramientas de solo lectura confinadas a la raíz:** `pack_codebase`, `read_repomix_output`, `grep_repomix_output`, `file_system_read_file` y `file_system_read_directory`. El empaquetado remoto, la generación de skills y la adjunción de salidas externas están deshabilitados, ya que acceden a la red, escriben archivos o hacen referencia a rutas arbitrarias.
+
+Esto es un confinamiento a nivel de aplicación de la superficie de herramientas (defensa en profundidad), no un sandbox a nivel de sistema operativo. Si alojas el servidor para clientes no confiables, sigue ejecutándolo bajo el aislamiento habitual de tu plataforma (contenedores, usuarios dedicados).
+
+`--sandbox` solo afecta al servidor MCP; no tiene efecto sin `--mcp`.
+
 ## Configuración de servidores MCP
 
 Para usar Repomix como servidor MCP con asistentes de IA como Claude, necesitas configurar los ajustes de MCP:
@@ -118,6 +139,7 @@ Esta herramienta empaqueta un directorio de código local en un archivo XML para
 | `compress` | No | `false` | Habilita la compresión Tree-sitter para extraer firmas de código esenciales y estructura mientras elimina detalles de implementación. Reduce el uso de tokens en ~70% manteniendo el significado semántico. Generalmente no es necesario ya que `grep_repomix_output` permite recuperación incremental de contenido. |
 | `includePatterns` | No | — | Archivos a incluir usando patrones fast-glob. Separados por comas (ej: `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | No | — | Archivos adicionales a excluir usando patrones fast-glob. Separados por comas (ej: `"test/**,*.spec.js"`). Complementan `.gitignore` y exclusiones integradas. |
+| `outputPatterns` | No | — | Niveles de inclusión por archivo, reflejando la opción de archivo de configuración [`output.patterns`](./configuration.md). Un array de entradas `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }`. El primer patrón coincidente gana; `directoryStructureOnly` tiene precedencia sobre `compress`, y una coincidencia sin ninguna de las dos flags fuerza el contenido completo (útil para exentar archivos de un `compress` global). Sobrescribe cualquier `output.patterns` del `repomix.config.json` del repositorio de destino. |
 | `topFilesLength` | No | `10` | Número de archivos más grandes por tamaño para mostrar en el resumen de métricas |
 | `style` | No | `xml` | Estilo de formato de salida: `xml`, `markdown`, `json` o `plain` |
 
@@ -125,12 +147,18 @@ Esta herramienta empaqueta un directorio de código local en un archivo XML para
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+Con el ejemplo anterior (donde `compress: true` actúa como comodín general para los archivos sin coincidencia), los archivos bajo `src/core/` se mantienen con contenido completo, los archivos bajo `docs/` se listan solo en la estructura de directorios, y todo lo demás se comprime.
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ Esta herramienta obtiene, clona y empaqueta un repositorio de GitHub en un archi
 | `compress` | No | `false` | Habilita la compresión Tree-sitter para extraer firmas de código esenciales y estructura mientras elimina detalles de implementación. Reduce el uso de tokens en ~70% manteniendo el significado semántico. Generalmente no es necesario ya que `grep_repomix_output` permite recuperación incremental de contenido. |
 | `includePatterns` | No | — | Archivos a incluir usando patrones fast-glob. Separados por comas (ej: `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | No | — | Archivos adicionales a excluir usando patrones fast-glob. Separados por comas (ej: `"test/**,*.spec.js"`). Complementan `.gitignore` y exclusiones integradas. |
+| `outputPatterns` | No | — | Niveles de inclusión por archivo, reflejando la opción de archivo de configuración [`output.patterns`](./configuration.md). Un array de entradas `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }`. El primer patrón coincidente gana; `directoryStructureOnly` tiene precedencia sobre `compress`, y una coincidencia sin ninguna de las dos flags fuerza el contenido completo (útil para exentar archivos de un `compress` global). |
 | `topFilesLength` | No | `10` | Número de archivos más grandes por tamaño para mostrar en el resumen de métricas |
 | `style` | No | `xml` | Estilo de formato de salida: `xml`, `markdown`, `json` o `plain` |
 
@@ -151,9 +180,13 @@ Esta herramienta obtiene, clona y empaqueta un repositorio de GitHub en un archi
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
