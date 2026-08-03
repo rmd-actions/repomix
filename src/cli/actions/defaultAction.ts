@@ -27,14 +27,12 @@ export interface DefaultActionRunnerResult {
   config: RepomixConfigMerged;
 }
 
-export const runDefaultAction = async (
-  directories: string[],
-  cwd: string,
-  cliOptions: CliOptions,
-  progressCallback?: RepomixProgressCallback,
-): Promise<DefaultActionRunnerResult> => {
-  logger.trace('Loaded CLI options:', cliOptions);
-
+/**
+ * Builds the merged Repomix config from CLI options: runs pending migrations,
+ * loads the file config, parses the CLI options, and merges them. Shared by the
+ * default and watch actions so the config pipeline lives in one place.
+ */
+export const buildMergedConfig = async (cwd: string, cliOptions: CliOptions): Promise<RepomixConfigMerged> => {
   // Run migration before loading config
   await runMigrationAction(cwd);
 
@@ -52,6 +50,20 @@ export const runDefaultAction = async (
   const config: RepomixConfigMerged = mergeConfigs(cwd, fileConfig, cliConfig);
   logger.trace('Merged config:', config);
 
+  return config;
+};
+
+export const runDefaultAction = async (
+  directories: string[],
+  cwd: string,
+  cliOptions: CliOptions,
+  progressCallback?: RepomixProgressCallback,
+): Promise<DefaultActionRunnerResult> => {
+  logger.trace('Loaded CLI options:', cliOptions);
+
+  // Build the merged config (migration + file config + CLI options)
+  const config = await buildMergedConfig(cwd, cliOptions);
+
   // Validate conflicting options
   validateConflictingOptions(config);
 
@@ -62,10 +74,16 @@ export const runDefaultAction = async (
   if (cliOptions.force && config.skillGenerate === undefined) {
     throw new RepomixError('--force can only be used with --skill-generate');
   }
+  if (cliOptions.skillProjectName !== undefined && config.skillGenerate === undefined) {
+    throw new RepomixError('--skill-project-name can only be used with --skill-generate');
+  }
 
   // Validate --skill-output is not empty or whitespace only
   if (cliOptions.skillOutput !== undefined && !cliOptions.skillOutput.trim()) {
     throw new RepomixError('--skill-output path cannot be empty');
+  }
+  if (cliOptions.skillProjectName !== undefined && !cliOptions.skillProjectName.trim()) {
+    throw new RepomixError('--skill-project-name cannot be empty');
   }
 
   // Validate skill generation options and prompt for location

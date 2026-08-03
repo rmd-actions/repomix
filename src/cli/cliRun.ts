@@ -1,8 +1,10 @@
+import * as fs from 'node:fs/promises';
+import path from 'node:path';
 import process from 'node:process';
 import { Option, program } from 'commander';
 import pc from 'picocolors';
 import { getVersion } from '../core/file/packageJsonParse.js';
-import { isExplicitRemoteUrl } from '../core/git/gitRemoteUrl.js';
+import { isExplicitRemoteUrl, isValidShorthand } from '../core/git/gitRemoteUrl.js';
 import { handleError, RepomixError } from '../shared/errorHandle.js';
 import { logger, repomixLogLevels } from '../shared/logger.js';
 import { parseHumanSizeToBytes } from '../shared/sizeParse.js';
@@ -40,6 +42,9 @@ const semanticSuggestionMap: Record<string, string[]> = {
   console: ['--stdout'],
   terminal: ['--stdout'],
   pipe: ['--stdin'],
+  monitor: ['--watch'],
+  live: ['--watch'],
+  auto: ['--watch'],
 };
 
 export const run = async () => {
@@ -191,8 +196,12 @@ export const run = async () => {
         '--skill-generate [name]',
         'Generate Claude Agent Skills format output to .claude/skills/<name>/ directory (name auto-generated if omitted)',
       )
+      .option('--skill-project-name <name>', 'Override the project name used in generated Skills descriptions')
       .option('--skill-output <path>', 'Specify skill output directory path directly (skips location prompt)')
       .option('-f, --force', 'Skip all confirmation prompts (currently: skill directory overwrite)')
+      // Watch Mode
+      .optionsGroup('Watch Mode')
+      .option('-w, --watch', 'Watch for file changes and automatically re-pack')
       .action(commanderActionEndpoint);
 
     // Custom error handling function
@@ -235,6 +244,43 @@ const commanderActionEndpoint = async (directories: string[], options: CliOption
   await runCli(directories, process.cwd(), options);
 };
 
+/**
+ * Validates flags that cannot be combined with --watch. Runs before log-level
+ * changes so error messages are not suppressed by --quiet/--stdout.
+ */
+const validateWatchOptions = (directories: string[], options: CliOptions): void => {
+  if (!options.watch) {
+    return;
+  }
+  if (options.remote) {
+    throw new RepomixError('--watch cannot be used with --remote. Watch mode only works with local directories.');
+  }
+  if (options.stdout) {
+    throw new RepomixError('--watch cannot be used with --stdout. Watch mode writes to a file.');
+  }
+  if (options.stdin) {
+    throw new RepomixError('--watch cannot be used with --stdin. Watch mode discovers files automatically.');
+  }
+  if (options.copy) {
+    throw new RepomixError(
+      '--watch cannot be used with --copy. Watch mode re-packs on every change, which would repeatedly overwrite the clipboard.',
+    );
+  }
+  if (options.splitOutput) {
+    throw new RepomixError(
+      '--watch cannot be used with --split-output. Watch mode does not yet support split output files.',
+    );
+  }
+  if (options.skillGenerate !== undefined) {
+    throw new RepomixError(
+      '--watch cannot be used with --skill-generate. Watch mode does not support skill generation.',
+    );
+  }
+  if (directories.length === 1 && isExplicitRemoteUrl(directories[0])) {
+    throw new RepomixError('--watch cannot be used with remote URLs. Watch mode only works with local directories.');
+  }
+};
+
 export const runCli = async (directories: string[], cwd: string, options: CliOptions) => {
   // Detect stdout mode
   // NOTE: For compatibility, currently not detecting pipe mode
@@ -242,6 +288,9 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
   if (isForceStdoutMode) {
     options.stdout = true;
   }
+
+  // Validate --watch conflicts early, before log level changes can suppress error messages
+  validateWatchOptions(directories, options);
 
   // Set log level based on verbose and quiet flags
   if (options.quiet) {
@@ -294,6 +343,40 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
     logger.trace(`Auto-detected remote URL from positional argument: ${directories[0]}`);
     const { runRemoteAction } = await import('./actions/remoteAction.js');
     return await runRemoteAction(directories[0], options);
+  }
+
+  if (options.watch) {
+    const { runWatchAction } = await import('./actions/watchAction.js');
+    return await runWatchAction(directories, cwd, options);
+  }
+
+  // Auto-detect GitHub shorthand (owner/repo) in positional arguments.
+  // Shorthand is ambiguous with relative local paths, so it is only treated as remote when:
+  //   1. the argument does not exist as a local path, and
+  //   2. the repository is confirmed reachable on GitHub (HEAD-only `git ls-remote` probe).
+  // A mistyped local path (e.g. `src/uitls`) fails the probe and falls through to the
+  // regular local-path handling instead of triggering an unintended clone attempt.
+  // Skipped in stdin mode, where positional directory arguments are rejected.
+  if (directories.length === 1 && !options.stdin && isValidShorthand(directories[0])) {
+    const localPathExists = await fs.access(path.resolve(cwd, directories[0])).then(
+      () => true,
+      // EACCES/EPERM mean the path exists but is inaccessible — keep local-path precedence
+      // and only fall through to the remote probe when the path is truly missing.
+      (error: NodeJS.ErrnoException) => !['ENOENT', 'ENOTDIR'].includes(error.code ?? ''),
+    );
+    if (!localPathExists) {
+      const { checkRemoteRepoExists } = await import('../core/git/gitRemoteHandle.js');
+      if (await checkRemoteRepoExists(`https://github.com/${directories[0]}.git`)) {
+        logger.log(
+          pc.dim(
+            `Detected GitHub repository shorthand: ${directories[0]} (prefix with ./ to treat it as a local path)\n`,
+          ),
+        );
+        const { runRemoteAction } = await import('./actions/remoteAction.js');
+        return await runRemoteAction(directories[0], options);
+      }
+      logger.trace(`Argument matches owner/repo shorthand but is not a reachable GitHub repository: ${directories[0]}`);
+    }
   }
 
   const { runDefaultAction } = await import('./actions/defaultAction.js');
