@@ -26,6 +26,7 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 |------|------|
 | `-o, --output <file>` | 輸出檔案路徑（預設：`repomix-output.xml`，標準輸出使用 `"-"`） |
 | `--style <style>` | 輸出格式：`xml`、`markdown`、`json` 或 `plain`（預設：`xml`） |
+| `--output-file-path-style <style>` | 輸出中顯示檔案路徑的方式：`target-relative` 或 `cwd-relative`（預設：`target-relative`） |
 | `--parsable-style` | 跳脫特殊字元以確保有效的 XML/Markdown（當輸出包含破壞格式的程式碼時需要） |
 | `--compress` | 使用 Tree-sitter 解析提取基本程式碼結構（類別、函數、介面） |
 | `--output-show-line-numbers` | 為輸出中的每行新增行號前綴 |
@@ -61,7 +62,7 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 |------|------|
 | `--remote <url>` | 複製並打包遠端儲存庫（GitHub URL 或 `user/repo` 格式） |
 | `--remote-branch <name>` | 要使用的特定分支、標籤或提交（預設：儲存庫的預設分支） |
-| `--remote-trust-config` | 信任並載入遠端儲存庫的設定檔（出於安全考量預設停用） |
+| `--remote-trust-config` | 信任並載入遠端儲存庫的設定檔。受信任的設定可以執行命令並讀取本機檔案，因此請僅對您完全信任的儲存庫使用（出於安全考量預設停用）。在互動式終端中會顯示該設定並要求確認 |
 
 ## 組態選項
 
@@ -80,6 +81,7 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 
 ## MCP 選項
 - `--mcp`: 作為 Model Context Protocol 伺服器運行，用於 AI 工具整合
+- `--sandbox [dir]`: （搭配 `--mcp` 使用）將 MCP 伺服器的檔案工具限制在一個工作區目錄內（預設為目前工作目錄；例如：`--sandbox path/to/project`）。所有路徑皆相對於該根目錄解析，絕對路徑／主機路徑會被拒絕，同時遠端打包、Skills 生成以及附加外部輸出功能皆會被停用。詳見 [MCP 伺服器](/zh-tw/guide/mcp-server)
 
 ## Agent Skills 生成選項
 
@@ -88,7 +90,7 @@ description: 查閱 Repomix CLI 的所有選項，涵蓋輸入、輸出、檔案
 | `--skill-generate [name]` | 產生 Claude Agent Skills 格式輸出到 `.claude/skills/<name>/` 目錄（省略名稱時自動產生） |
 | `--skill-project-name <name>` | 覆寫產生的 Skills 描述中使用的專案名稱 |
 | `--skill-output <path>` | 直接指定技能輸出目錄路徑（跳過位置選擇提示） |
-| `-f, --force` | 跳過所有確認提示（例如：技能目錄覆蓋） |
+| `-f, --force` | 跳過所有確認提示（技能目錄覆蓋、遠端設定信任） |
 
 ## 監視模式選項
 

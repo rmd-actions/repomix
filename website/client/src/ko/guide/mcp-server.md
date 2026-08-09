@@ -20,6 +20,27 @@ repomix --mcp
 
 이렇게 하면 Repomix가 MCP 서버 모드로 시작되어 Model Context Protocol을 지원하는 AI 어시스턴트에서 사용할 수 있게 됩니다.
 
+## 샌드박스 모드
+
+기본적으로 MCP 서버는 호스트 사용자가 접근할 수 있는 모든 경로를 읽을 수 있습니다. 이는 신뢰할 수 있는 로컬 어시스턴트에는 편리하지만, 서버가 신뢰할 수 없는 클라이언트나 에이전트에 노출되는 경우에는 범위가 너무 넓습니다. `--sandbox` 플래그는 서버의 파일 도구를 단일 작업 공간 디렉토리로 제한합니다:
+
+```bash
+# 현재 작업 디렉토리로 제한
+repomix --mcp --sandbox
+
+# 특정 디렉토리로 제한
+repomix --mcp --sandbox path/to/project
+```
+
+샌드박스 모드가 켜져 있으면:
+
+- **모든 경로는 작업 공간 루트를 기준으로 한 상대 경로입니다.** 절대 경로, `~`, `..`, Windows 드라이브/UNC 경로는 거부되며, 심볼릭 링크를 통한 경우를 포함하여 루트 밖으로 해석되는 경로는 제외됩니다. 결과와 오류 메시지도 상대 경로로 표시되므로 호스트 경로가 노출되지 않습니다. 이는 아래 도구 참조에 나오는 `directory` 및 `path` 매개변수에도 적용됩니다. 샌드박스 모드에서는 해당 표에서 설명하는 절대 경로가 아니라 작업 공간 루트를 기준으로 한 상대 경로로 전달해야 합니다.
+- **읽기 전용이며 루트로 제한된 도구만 등록됩니다:** `pack_codebase`, `read_repomix_output`, `grep_repomix_output`, `file_system_read_file`, `file_system_read_directory`. 원격 패키징, 스킬 생성, 외부 출력 첨부 기능은 네트워크에 접근하거나 파일을 작성하거나 임의의 경로를 참조하므로 비활성화됩니다.
+
+이는 도구 표면에 대한 애플리케이션 수준의 제한(심층 방어)이며, OS 수준의 샌드박스는 아닙니다. 신뢰할 수 없는 클라이언트를 위해 서버를 호스팅할 때는 여전히 플랫폼의 일반적인 격리 방식(컨테이너, 전용 사용자)으로 실행해야 합니다.
+
+`--sandbox`는 MCP 서버에만 영향을 미치며, `--mcp` 없이는 아무런 효과가 없습니다.
+
 ## MCP 서버 구성하기
 
 Claude와 같은 AI 어시스턴트와 함께 Repomix를 MCP 서버로 사용하려면 MCP 설정을 구성해야 합니다:
@@ -118,6 +139,7 @@ MCP 서버로 실행할 때 Repomix는 다음 도구를 제공합니다:
 | `compress` | 아니오 | `false` | 구현 세부사항을 제거하면서 핵심 코드 시그니처와 구조를 추출하는 Tree-sitter 압축 활성화. 의미를 유지하면서 토큰 사용량을 ~70% 줄입니다. `grep_repomix_output`이 점진적 콘텐츠 검색을 가능하게 하므로 일반적으로 불필요합니다. |
 | `includePatterns` | 아니오 | — | fast-glob 패턴으로 포함할 파일 지정. 쉼표로 구분 (예: `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | 아니오 | — | fast-glob 패턴으로 제외할 추가 파일 지정. 쉼표로 구분 (예: `"test/**,*.spec.js"`). `.gitignore`와 내장 제외를 보완합니다. |
+| `outputPatterns` | 아니오 | — | 설정 파일의 [`output.patterns`](./configuration.md) 옵션에 해당하는 파일별 포함 수준. `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` 형식의 항목 배열. 처음 일치하는 패턴이 우선하며, `directoryStructureOnly`가 `compress`보다 우선합니다. 두 플래그 모두 지정하지 않은 일치 항목은 전체 콘텐츠를 강제합니다(전역 `compress`에서 특정 파일을 제외할 때 유용). 대상 저장소의 `repomix.config.json`에 있는 `output.patterns`를 재정의합니다. |
 | `topFilesLength` | 아니오 | `10` | 메트릭 요약에 표시할 크기별 최대 파일 수 |
 | `style` | 아니오 | `xml` | 출력 형식 스타일: `xml`, `markdown`, `json`, 또는 `plain` |
 
@@ -125,12 +147,18 @@ MCP 서버로 실행할 때 Repomix는 다음 도구를 제공합니다:
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+위 예시에서(`compress: true`가 일치하지 않는 파일에 대한 catch-all 역할을 하는 경우), `src/core/` 아래의 파일은 전체 콘텐츠로 유지되고, `docs/` 아래의 파일은 디렉토리 구조만 표시되며, 나머지는 모두 압축됩니다.
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ MCP 서버로 실행할 때 Repomix는 다음 도구를 제공합니다:
 | `compress` | 아니오 | `false` | 구현 세부사항을 제거하면서 핵심 코드 시그니처와 구조를 추출하는 Tree-sitter 압축 활성화. 의미를 유지하면서 토큰 사용량을 ~70% 줄입니다. `grep_repomix_output`이 점진적 콘텐츠 검색을 가능하게 하므로 일반적으로 불필요합니다. |
 | `includePatterns` | 아니오 | — | fast-glob 패턴으로 포함할 파일 지정. 쉼표로 구분 (예: `"**/*.{js,ts}"`, `"src/**,docs/**"`) |
 | `ignorePatterns` | 아니오 | — | fast-glob 패턴으로 제외할 추가 파일 지정. 쉼표로 구분 (예: `"test/**,*.spec.js"`). `.gitignore`와 내장 제외를 보완합니다. |
+| `outputPatterns` | 아니오 | — | 설정 파일의 [`output.patterns`](./configuration.md) 옵션에 해당하는 파일별 포함 수준. `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` 형식의 항목 배열. 처음 일치하는 패턴이 우선하며, `directoryStructureOnly`가 `compress`보다 우선합니다. 두 플래그 모두 지정하지 않은 일치 항목은 전체 콘텐츠를 강제합니다(전역 `compress`에서 특정 파일을 제외할 때 유용). |
 | `topFilesLength` | 아니오 | `10` | 메트릭 요약에 표시할 크기별 최대 파일 수 |
 | `style` | 아니오 | `xml` | 출력 형식 스타일: `xml`, `markdown`, `json`, 또는 `plain` |
 
@@ -151,9 +180,13 @@ MCP 서버로 실행할 때 Repomix는 다음 도구를 제공합니다:
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```

@@ -20,6 +20,27 @@ repomix --mcp
 
 これによりRepomixがMCPサーバーモードで起動し、Model Context ProtocolをサポートするAIアシスタントから利用できるようになります。
 
+## サンドボックスモード
+
+デフォルトでは、MCPサーバーはホストユーザーがアクセス可能な任意のパスを読み取ることができます。これは信頼できるローカルアシスタントにとっては便利ですが、信頼できないクライアントやエージェントにサーバーを公開する場合は範囲が広すぎます。`--sandbox`フラグは、サーバーのファイルツールを単一のワークスペースディレクトリに制限します：
+
+```bash
+# 現在の作業ディレクトリに制限
+repomix --mcp --sandbox
+
+# 特定のディレクトリに制限
+repomix --mcp --sandbox path/to/project
+```
+
+サンドボックスモードが有効な場合：
+
+- **すべてのパスはワークスペースのルートからの相対パスになります。** 絶対パス、`~`、`..`、Windowsのドライブ/UNCパスは拒否され、（シンボリックリンクを経由する場合を含め）ルートの外に解決されるパスは除外されます。結果やエラーメッセージも相対パスになるため、ホスト側のパスが露出することはありません。これは以下のツールリファレンスにある`directory`引数と`path`引数にも適用されます。サンドボックスモードでは、各表が本来説明する絶対パスではなく、ワークスペースのルートからの相対パスを渡してください。
+- **読み取り専用でルートに制限されたツールのみが登録されます：** `pack_codebase`、`read_repomix_output`、`grep_repomix_output`、`file_system_read_file`、`file_system_read_directory`。リモートパッケージ化、スキル生成、外部出力のアタッチは、ネットワークへのアクセス、ファイルの書き込み、任意パスの参照を伴うため無効化されます。
+
+これはツールサーフェスに対するアプリケーションレベルの制限（多層防御）であり、OSレベルのサンドボックスではありません。信頼できないクライアント向けにサーバーをホストする場合でも、コンテナや専用ユーザーなど、プラットフォーム標準の分離手段の下で実行してください。
+
+`--sandbox`はMCPサーバーにのみ影響し、`--mcp`なしでは効果がありません。
+
 ## MCPサーバーの設定
 
 RepomixをMCPサーバーとしてClaudeなどのAIアシスタントで使用するには、MCP設定を構成する必要があります：
@@ -118,6 +139,7 @@ MCPサーバーとして実行すると、Repomixは以下のツールを提供�
 | `compress` | いいえ | `false` | 実装の詳細を削除しながら、重要なコードシグネチャと構造を抽出するTree-sitter圧縮を有効化。セマンティックな意味を保持しながらトークン使用量を約70%削減。`grep_repomix_output`が段階的なコンテンツ取得を可能にするため、通常は不要。 |
 | `includePatterns` | いいえ | — | fast-globパターンを使用して含めるファイル。カンマ区切り（例：`"**/*.{js,ts}"`、`"src/**,docs/**"`） |
 | `ignorePatterns` | いいえ | — | fast-globパターンを使用して除外する追加ファイル。カンマ区切り（例：`"test/**,*.spec.js"`）。`.gitignore`と組み込み除外を補完。 |
+| `outputPatterns` | いいえ | — | 設定ファイルの[`output.patterns`](./configuration.md)オプションに相当する、ファイルごとの含有レベル。`{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }`形式のエントリの配列。最初に一致したパターンが優先され、`directoryStructureOnly`は`compress`より優先。どちらのフラグも指定しない一致はフルコンテンツを強制（グローバルな`compress`から特定ファイルを除外する際に有用）。対象リポジトリの`repomix.config.json`内の`output.patterns`を上書き。 |
 | `topFilesLength` | いいえ | `10` | メトリクス要約に表示する最大ファイル数（サイズ順） |
 | `style` | いいえ | `xml` | 出力フォーマットスタイル：`xml`、`markdown`、`json`、または`plain` |
 
@@ -125,12 +147,18 @@ MCPサーバーとして実行すると、Repomixは以下のツールを提供�
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+上記の例では（`compress: true`が、いずれのパターンにも一致しないファイルに対するキャッチオールとして機能します）、`src/core/`配下のファイルはフルコンテンツのまま保持され、`docs/`配下のファイルはディレクトリ構造のみが表示され、それ以外は圧縮されます。
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ MCPサーバーとして実行すると、Repomixは以下のツールを提供�
 | `compress` | いいえ | `false` | 実装の詳細を削除しながら、重要なコードシグネチャと構造を抽出するTree-sitter圧縮を有効化。セマンティックな意味を保持しながらトークン使用量を約70%削減。`grep_repomix_output`が段階的なコンテンツ取得を可能にするため、通常は不要。 |
 | `includePatterns` | いいえ | — | fast-globパターンを使用して含めるファイル。カンマ区切り（例：`"**/*.{js,ts}"`、`"src/**,docs/**"`） |
 | `ignorePatterns` | いいえ | — | fast-globパターンを使用して除外する追加ファイル。カンマ区切り（例：`"test/**,*.spec.js"`）。`.gitignore`と組み込み除外を補完。 |
+| `outputPatterns` | いいえ | — | 設定ファイルの[`output.patterns`](./configuration.md)オプションに相当する、ファイルごとの含有レベル。`{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }`形式のエントリの配列。最初に一致したパターンが優先され、`directoryStructureOnly`は`compress`より優先。どちらのフラグも指定しない一致はフルコンテンツを強制（グローバルな`compress`から特定ファイルを除外する際に有用）。 |
 | `topFilesLength` | いいえ | `10` | メトリクス要約に表示する最大ファイル数（サイズ順） |
 | `style` | いいえ | `xml` | 出力フォーマットスタイル：`xml`、`markdown`、`json`、または`plain` |
 
@@ -151,9 +180,13 @@ MCPサーバーとして実行すると、Repomixは以下のツールを提供�
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```

@@ -20,6 +20,27 @@ repomix --mcp
 
 这会以 MCP 服务器模式启动 Repomix，使其可供支持 Model Context Protocol 的 AI 助手使用。
 
+## 沙箱模式
+
+默认情况下，MCP 服务器可以读取主机用户能够访问的任何路径。这对受信任的本地助手来说很方便，但当服务器暴露给不受信任的客户端或 agent 时，权限范围就显得过大了。`--sandbox` 标志会将服务器的文件工具限制在单个工作区目录内：
+
+```bash
+# 限制在当前工作目录内
+repomix --mcp --sandbox
+
+# 限制在指定目录内
+repomix --mcp --sandbox path/to/project
+```
+
+启用沙箱模式后：
+
+- **所有路径都相对于工作区根目录解析。** 绝对路径、`~`、`..` 以及 Windows 驱动器/UNC 路径都会被拒绝，解析后落在根目录之外的路径（包括通过符号链接的情况）也会被丢弃。返回结果和错误消息中的路径同样是相对路径，因此不会暴露主机路径。这也适用于下方工具参考中的 `directory` 和 `path` 参数：在沙箱模式下，应将它们指定为相对于工作区根目录的路径，而不是这些表格中通常描述的绝对路径。
+- **仅注册只读且限定在根目录内的工具：** `pack_codebase`、`read_repomix_output`、`grep_repomix_output`、`file_system_read_file` 和 `file_system_read_directory`。远程打包、Skill 生成以及附加外部输出等功能均被禁用，因为它们会访问网络、写入文件或引用任意路径。
+
+这是在应用层面对工具能力范围的限制（纵深防御），而非操作系统级别的沙箱。当为不受信任的客户端托管服务器时，仍应在你所在平台的常规隔离机制下运行它（容器、专用用户等）。
+
+`--sandbox` 仅影响 MCP 服务器；如果不搭配 `--mcp` 使用则不会生效。
+
 ## 配置 MCP 服务器
 
 要将 Repomix 作为 MCP 服务器与 Claude 等 AI 助手一起使用，你需要配置 MCP 设置：
@@ -118,6 +139,7 @@ claude mcp add repomix -- npx -y repomix --mcp
 | `compress` | 否 | `false` | 启用 Tree-sitter 压缩以提取基本代码签名和结构，同时删除实现细节。在保持语义信息的同时减少约 70% 的 token 用量。由于 `grep_repomix_output` 支持按需检索内容，一般不需要启用此选项。 |
 | `includePatterns` | 否 | — | 使用 fast-glob 模式指定要包含的文件。多个模式用逗号分隔（例如 `"**/*.{js,ts}"`、`"src/**,docs/**"`） |
 | `ignorePatterns` | 否 | — | 使用 fast-glob 模式指定要排除的其他文件。多个模式用逗号分隔（例如 `"test/**,*.spec.js"`）。补充 `.gitignore` 和内置排除。 |
+| `outputPatterns` | 否 | — | 按文件设置内容包含级别，与配置文件中的 [`output.patterns`](./configuration.md) 选项对应。一个由 `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` 组成的数组。第一个匹配的模式优先；`directoryStructureOnly` 优先于 `compress`，未设置任一标志的匹配项将强制显示完整内容（可用于在全局启用 `compress` 时豁免特定文件）。会覆盖目标仓库 `repomix.config.json` 中的 `output.patterns` 设置。 |
 | `topFilesLength` | 否 | `10` | 在指标摘要中显示的最大文件数（按大小排序） |
 | `style` | 否 | `xml` | 输出格式样式：`xml`、`markdown`、`json` 或 `plain` |
 
@@ -125,12 +147,18 @@ claude mcp add repomix -- npx -y repomix --mcp
 ```json
 {
   "directory": "/path/to/your/project",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
+
+在上面的示例中（`compress: true` 作为未匹配文件的兜底设置），`src/core/` 下的文件将保留完整内容，`docs/` 下的文件仅在目录结构中列出，其余文件都会被压缩。
 
 ### pack_remote_repository
 
@@ -144,6 +172,7 @@ claude mcp add repomix -- npx -y repomix --mcp
 | `compress` | 否 | `false` | 启用 Tree-sitter 压缩以提取基本代码签名和结构，同时删除实现细节。在保持语义信息的同时减少约 70% 的 token 用量。由于 `grep_repomix_output` 支持按需检索内容，一般不需要启用此选项。 |
 | `includePatterns` | 否 | — | 使用 fast-glob 模式指定要包含的文件。多个模式用逗号分隔（例如 `"**/*.{js,ts}"`、`"src/**,docs/**"`） |
 | `ignorePatterns` | 否 | — | 使用 fast-glob 模式指定要排除的其他文件。多个模式用逗号分隔（例如 `"test/**,*.spec.js"`）。补充 `.gitignore` 和内置排除。 |
+| `outputPatterns` | 否 | — | 按文件设置内容包含级别，与配置文件中的 [`output.patterns`](./configuration.md) 选项对应。一个由 `{ "pattern": string, "compress"?: boolean, "directoryStructureOnly"?: boolean }` 组成的数组。第一个匹配的模式优先；`directoryStructureOnly` 优先于 `compress`，未设置任一标志的匹配项将强制显示完整内容（可用于在全局启用 `compress` 时豁免特定文件）。 |
 | `topFilesLength` | 否 | `10` | 在指标摘要中显示的最大文件数（按大小排序） |
 | `style` | 否 | `xml` | 输出格式样式：`xml`、`markdown`、`json` 或 `plain` |
 
@@ -151,9 +180,13 @@ claude mcp add repomix -- npx -y repomix --mcp
 ```json
 {
   "remote": "yamadashy/repomix",
-  "compress": false,
+  "compress": true,
   "includePatterns": "src/**/*.ts,**/*.md",
   "ignorePatterns": "**/*.log,tmp/",
+  "outputPatterns": [
+    { "pattern": "src/core/**" },
+    { "pattern": "docs/**/*", "directoryStructureOnly": true }
+  ],
   "topFilesLength": 10
 }
 ```
