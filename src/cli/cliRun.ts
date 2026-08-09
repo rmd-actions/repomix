@@ -101,6 +101,12 @@ export const run = async () => {
       .optionsGroup('Repomix Output Options')
       .option('-o, --output <file>', 'Output file path (default: repomix-output.xml, use "-" for stdout)')
       .option('--style <type>', 'Output format: xml, markdown, json, or plain (default: xml)')
+      .addOption(
+        new Option(
+          '--output-file-path-style <style>',
+          'How file paths are shown in output: target-relative or cwd-relative (default: target-relative)',
+        ).choices(['target-relative', 'cwd-relative']),
+      )
       .option(
         '--parsable-style',
         'Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting)',
@@ -241,7 +247,10 @@ export const run = async () => {
 };
 
 const commanderActionEndpoint = async (directories: string[], options: CliOptions = {}) => {
-  await runCli(directories, process.cwd(), options);
+  // Auto-enable file processors for real CLI invocations only. Library callers
+  // (`runCli`/`pack`) and MCP tools bypass this endpoint, so they default to OFF.
+  // Remote runs downgrade this based on --remote-trust-config in runRemoteAction.
+  await runCli(directories, process.cwd(), { enableFileProcessors: true, ...options });
 };
 
 /**

@@ -139,6 +139,9 @@ export const runRemoteAction = async (
       skillProjectName,
       skillSourceUrl,
       skipLocalConfig: !trustRemoteConfig,
+      // File processors from a cloned repo's config run arbitrary commands, so
+      // they are only honored when the user explicitly trusts remote config.
+      enableFileProcessors: (cliOptions.enableFileProcessors ?? false) && trustRemoteConfig,
       // Defer the token-budget check so the output is copied out of the temp
       // dir below before the guard can throw; we run validateTokenBudget here
       // afterwards. Otherwise an over-budget remote run would throw inside
@@ -152,7 +155,10 @@ export const runRemoteAction = async (
     // For skill generation, the skill is already written directly to the target directory
     // (either via --skill-output path or via promptSkillLocation which uses process.cwd())
     if (!cliOptions.stdout && result.config.skillGenerate === undefined) {
-      await copyOutputToCurrentDirectory(tempDirPath, process.cwd(), result.config.output.filePath);
+      const outputFiles = result.packResult.outputFiles ?? [result.config.output.filePath];
+      for (const outputFile of outputFiles) {
+        await copyOutputToCurrentDirectory(tempDirPath, process.cwd(), outputFile);
+      }
     }
 
     // Enforce the token budget now that the output has been delivered (copied

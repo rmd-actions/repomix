@@ -113,6 +113,52 @@ describe('remoteAction functions', () => {
       expect(fs.copyFile).toHaveBeenCalled();
     });
 
+    test('copies all split-output files returned by remote packing', async () => {
+      const execGitShallowCloneMock = vi.fn(async (_url: string, directory: string) => {
+        await fs.writeFile(path.join(directory, 'README.md'), 'Hello, world!');
+      });
+      const base = createMockDefaultActionResult();
+      const runDefaultActionMock = vi.fn(async () => ({
+        packResult: {
+          ...base.packResult,
+          outputFiles: ['split-output.1.xml', 'split-output.2.xml'],
+        },
+        config: createMockConfig({ output: { filePath: 'split-output.xml', splitOutput: 1024 } }),
+      }));
+
+      vi.mocked(fs.copyFile).mockResolvedValue(undefined);
+      await runRemoteAction(
+        'https://gitlab.com/owner/repo.git',
+        {},
+        {
+          isGitInstalled: async () => Promise.resolve(true),
+          execGitShallowClone: execGitShallowCloneMock,
+          getRemoteRefs: async () => Promise.resolve(['main']),
+          runDefaultAction: runDefaultActionMock,
+          downloadGitHubArchive: vi.fn().mockRejectedValue(new Error('Archive download not implemented in test')),
+          isGitHubRepository: vi.fn().mockReturnValue(false),
+          parseGitHubRepoInfo: vi.fn().mockReturnValue(null),
+          isArchiveDownloadSupported: vi.fn().mockReturnValue(false),
+        },
+      );
+
+      expect(fs.copyFile).toHaveBeenCalledTimes(2);
+      expect(fs.copyFile).toHaveBeenNthCalledWith(
+        1,
+        expect.stringMatching(/split-output\.1\.xml$/),
+        path.resolve(process.cwd(), 'split-output.1.xml'),
+      );
+      expect(fs.copyFile).toHaveBeenNthCalledWith(
+        2,
+        expect.stringMatching(/split-output\.2\.xml$/),
+        path.resolve(process.cwd(), 'split-output.2.xml'),
+      );
+      expect(fs.copyFile).not.toHaveBeenCalledWith(
+        expect.stringMatching(/split-output\.xml$/),
+        path.resolve(process.cwd(), 'split-output.xml'),
+      );
+    });
+
     test('should download GitHub archive successfully without git installed', async () => {
       const downloadGitHubArchiveMock = vi.fn().mockResolvedValue(undefined);
       const execGitShallowCloneMock = vi.fn();
@@ -245,6 +291,62 @@ describe('remoteAction functions', () => {
         expect.any(Array),
         expect.any(String),
         expect.objectContaining({ skipLocalConfig: false }),
+      );
+    });
+
+    test('should keep file processors disabled for remote runs without --remote-trust-config', async () => {
+      const runDefaultActionMock = vi.fn(async () => createMockDefaultActionResult());
+
+      vi.mocked(fs.copyFile).mockResolvedValue(undefined);
+      // enableFileProcessors: true simulates the real CLI entry point injection; the
+      // remote gate must still force it off because the config comes from a clone.
+      await runRemoteAction(
+        'yamadashy/repomix',
+        { enableFileProcessors: true },
+        {
+          isGitInstalled: vi.fn().mockResolvedValue(false),
+          execGitShallowClone: vi.fn(),
+          getRemoteRefs: async () => Promise.resolve(['main']),
+          runDefaultAction: runDefaultActionMock,
+          downloadGitHubArchive: vi.fn().mockResolvedValue(undefined),
+          isGitHubRepository: vi.fn().mockReturnValue(true),
+          parseGitHubRepoInfo: vi.fn().mockReturnValue({ owner: 'yamadashy', repo: 'repomix' }),
+          isArchiveDownloadSupported: vi.fn().mockReturnValue(true),
+        },
+      );
+
+      expect(runDefaultActionMock).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(String),
+        expect.objectContaining({ enableFileProcessors: false }),
+      );
+    });
+
+    test('should enable file processors for remote runs when --remote-trust-config is passed', async () => {
+      const runDefaultActionMock = vi.fn(async () => createMockDefaultActionResult());
+
+      vi.mocked(fs.copyFile).mockResolvedValue(undefined);
+      await runRemoteAction(
+        'https://gitlab.com/owner/repo.git',
+        { enableFileProcessors: true, remoteTrustConfig: true },
+        {
+          isGitInstalled: async () => Promise.resolve(true),
+          execGitShallowClone: vi.fn(async (_url: string, directory: string) => {
+            await fs.writeFile(path.join(directory, 'README.md'), 'Hello');
+          }),
+          getRemoteRefs: async () => Promise.resolve(['main']),
+          runDefaultAction: runDefaultActionMock,
+          downloadGitHubArchive: vi.fn(),
+          isGitHubRepository: vi.fn().mockReturnValue(false),
+          parseGitHubRepoInfo: vi.fn().mockReturnValue(null),
+          isArchiveDownloadSupported: vi.fn().mockReturnValue(false),
+        },
+      );
+
+      expect(runDefaultActionMock).toHaveBeenCalledWith(
+        expect.any(Array),
+        expect.any(String),
+        expect.objectContaining({ enableFileProcessors: true }),
       );
     });
 
