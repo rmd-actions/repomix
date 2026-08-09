@@ -93,8 +93,10 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
 | `input.maxFileSize`              | 処理する最大ファイルサイズ（バイト）。これより大きいファイルはスキップされます。大きなバイナリファイルやデータファイルを除外するのに便利です | `50000000`            |
 | `output.filePath`                | 出力ファイル名。XML、Markdown、プレーンテキスト形式をサポートしています                                                      | `"repomix-output.xml"` |
 | `output.style`                   | 出力形式（`xml`、`markdown`、`json`、`plain`）。各形式はAIツールに応じて異なる利点があります                                        | `"xml"`                |
+| `output.filePathStyle`           | 出力内でのファイルパスの表示方法（`target-relative` は各ターゲットルートからの相対パス、`cwd-relative` はカレントワーキングディレクトリからの相対パスを使用）   | `"target-relative"`    |
 | `output.parsableStyle`           | 選択したスタイルスキーマに基づいて出力をエスケープするかどうか。より良い解析が可能になりますが、トークン数が増加する可能性があります | `false`                |
 | `output.compress`                | Tree-sitterを使用してインテリジェントなコード抽出を実行し、構造を保持しながらトークン数を削減するかどうか                  | `false`                |
+| `output.patterns`                | ファイルごとのインクルードレベル。`{ pattern, compress?, directoryStructureOnly? }`エントリの順序付き配列で、最初にマッチしたglobが優先され、そのファイルに対するグローバルな`output.compress`を上書きします。[ファイルごとのインクルードレベル](#ファイルごとのインクルードレベル)を参照してください | 未設定                 |
 | `output.headerText`              | ファイルヘッダーに含めるカスタムテキスト。AIツールにコンテキストや指示を提供するのに便利です                              | `null`                 |
 | `output.instructionFilePath`     | AI処理用の詳細なカスタム指示を含むファイルへのパス                                                                          | `null`                 |
 | `output.fileSummary`             | ファイル数、サイズ、その他のメトリクスを示す要約セクションを出力の先頭に含めるかどうか                                    | `true`                 |
@@ -158,6 +160,7 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "パッケージ化されたファイルのカスタムヘッダー情報",
@@ -168,6 +171,10 @@ JavaScript設定ファイルはTypeScriptと同様に機能し、`defineConfig`�
     "removeEmptyLines": false,
     "topFilesLength": 5,
     "showLineNumbers": false,
+    // "patterns": [
+    //   { "pattern": "docs/**/*", "compress": true },
+    //   { "pattern": "website/**/*", "directoryStructureOnly": true }
+    // ],
     "truncateBase64": false,
     "copyToClipboard": false,
     "includeEmptyDirectories": false,
@@ -327,6 +334,37 @@ build/
 - 関数本体と実装の詳細を削除
 
 詳細と例については[コード圧縮ガイド](code-compress)をご覧ください。
+
+### ファイルごとのインクルードレベル
+
+`output.compress`はすべてのファイルに単一のレベルを適用しますが、`output.patterns`を使用すると、設定ファイルから**globごと**に詳細レベルを制御できます。各エントリはglob（`include`/`ignore`と同じ方法でマッチします）でファイルを対象とし、マッチしたファイルに対するグローバルな`output.compress`設定を上書きします。
+
+```json5
+{
+  "output": {
+    "compress": false, // グローバルなデフォルトがキャッチオールとして機能します
+    "patterns": [
+      { "pattern": "docs/**/*", "compress": true },
+      { "pattern": "website/**/*", "directoryStructureOnly": true }
+    ]
+  }
+}
+```
+
+各ファイルは次の3つのレベルのいずれかに解決されます：
+
+- **完全な内容**（デフォルト）：ファイルの完全な内容が含まれます。
+- **圧縮**（`compress: true`）：内容は`output.compress`と同じTree-sitterパイプラインを通過します。
+- **ディレクトリ構造のみ**（`directoryStructureOnly: true`）：ファイルはディレクトリ構造にリストされますが、その内容ブロックは出力から完全に省略されます。
+
+ルール：
+
+- パターンは配列の順序で評価され、特定のファイルに対して**最初にマッチしたパターンが優先**されます。
+- マッチしたパターンのフラグは、グローバルな`output.compress`設定を上書きします。フラグを設定せずにマッチしたパターンは、そのファイルに対して**完全な内容**を強制します。これは、グローバルな`compress`からファイルをホワイトリスト登録するのに便利です。
+- 同じパターンに両方が設定されている場合、`directoryStructureOnly`が`compress`よりも優先されます。
+- どのパターンにもマッチしない場合、グローバルな動作が適用されます（完全な内容、または`output.compress`が`true`の場合は圧縮）。
+
+このオプションは設定ファイル専用であり、同等のCLIフラグはありません。
 
 ### Git統合
 

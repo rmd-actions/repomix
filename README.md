@@ -626,6 +626,7 @@ Instruction
 |--------|-------------|
 | `-o, --output <file>` | Output file path (default: `repomix-output.xml`, use `"-"` for stdout) |
 | `--style <style>` | Output format: `xml`, `markdown`, `json`, or `plain` (default: `xml`) |
+| `--output-file-path-style <style>` | How file paths are shown in output: `target-relative` or `cwd-relative` (default: `target-relative`) |
 | `--parsable-style` | Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting) |
 | `--compress` | Extract essential code structure (classes, functions, interfaces) using Tree-sitter parsing |
 | `--output-show-line-numbers` | Prefix each line with its line number in the output |
@@ -848,6 +849,37 @@ interface Item {
 
 > [!NOTE]
 > This is an experimental feature that we'll be actively improving based on user feedback and real-world usage
+
+### Per-file Inclusion Levels (`output.patterns`)
+
+While `--compress` applies one level to every file, `output.patterns` lets you control the detail level **per glob** from your config file. Each entry targets files by glob (matched the same way as `include`/`ignore`) and overrides the global `output.compress` setting for matching files:
+
+```json5
+{
+  "output": {
+    "compress": false, // global default acts as the catch-all
+    "patterns": [
+      { "pattern": "docs/**/*", "compress": true },
+      { "pattern": "website/**/*", "directoryStructureOnly": true }
+    ]
+  }
+}
+```
+
+There are three levels:
+
+- **Full content** (default) — the file's full content is included.
+- **Compressed** (`compress: true`) — the content is passed through the same Tree-sitter pipeline as `--compress`.
+- **Directory-structure-only** (`directoryStructureOnly: true`) — the file is listed in the directory structure, but its content block is omitted from the output entirely.
+
+Semantics:
+
+- Patterns are evaluated in array order and the **first matching pattern wins** for a given file.
+- A matched pattern's flags override the global `output.compress` setting. A pattern that matches without setting either flag forces **full content** for that file (useful for whitelisting files out of a global `compress`).
+- `directoryStructureOnly` takes precedence over `compress` when both are set.
+- If no pattern matches, the global behavior applies (full content, or compressed when `output.compress` is `true`).
+
+This is a config-file-only option; there is no CLI flag for per-pattern levels.
 
 ### Token Count Optimization
 
@@ -1392,8 +1424,10 @@ Here's an explanation of the configuration options:
 | `input.maxFileSize`              | Maximum file size in bytes to process. Files larger than this will be skipped                                                | `50000000`            |
 | `output.filePath`                | The name of the output file                                                                                                  | `"repomix-output.xml"` |
 | `output.style`                   | The style of the output (`xml`, `markdown`, `json`, `plain`)                                                                 | `"xml"`                |
+| `output.filePathStyle`           | How file paths are shown in output (`target-relative` keeps paths relative to each target root, `cwd-relative` keeps paths relative to the current working directory) | `"target-relative"`    |
 | `output.parsableStyle`           | Whether to escape the output based on the chosen style schema. Note that this can increase token count.                      | `false`                |
 | `output.compress`                | Whether to perform intelligent code extraction to reduce token count                                                         | `false`                |
+| `output.patterns`                | Per-file inclusion levels. An ordered array of `{ pattern, compress?, directoryStructureOnly? }` entries; the first matching glob wins and overrides the global `output.compress` for that file. See [Per-file Inclusion Levels](#per-file-inclusion-levels-outputpatterns) | Not set |
 | `output.headerText`              | Custom text to include in the file header                                                                                    | `null`                 |
 | `output.instructionFilePath`     | Path to a file containing detailed custom instructions                                                                       | `null`                 |
 | `output.fileSummary`             | Whether to include a summary section at the beginning of the output                                                          | `true`                 |
@@ -1458,8 +1492,14 @@ Example configuration:
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
+    // Optional: override the inclusion level per glob (first match wins)
+    // "patterns": [
+    //   { "pattern": "docs/**/*", "compress": true },
+    //   { "pattern": "website/**/*", "directoryStructureOnly": true }
+    // ],
     "headerText": "Custom header information for the packed file.",
     "fileSummary": true,
     "directoryStructure": true,
@@ -1716,7 +1756,7 @@ Upload the output file as an artifact:
     compress: true
 
 - name: Upload Repomix output
-  uses: actions/upload-artifact@v4
+  uses: actions/upload-artifact@v7
   with:
     name: repomix-output
     path: repomix-output.txt
@@ -1739,7 +1779,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Pack repository with Repomix
         uses: yamadashy/repomix/.github/actions/repomix@main
@@ -1747,7 +1787,7 @@ jobs:
           output: repomix-output.xml
 
       - name: Upload Repomix output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: repomix-output.xml
           path: repomix-output.xml

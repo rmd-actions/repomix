@@ -93,8 +93,10 @@ JavaScript設定檔的工作方式與TypeScript相同，支援`defineConfig`和�
 | `input.maxFileSize`              | 要處理的最大檔案大小（位元組）。超過此大小的檔案將被跳過。用於排除大型二進位檔案或資料檔案                                | `50000000`            |
 | `output.filePath`                | 輸出檔案名。支援XML、Markdown和純文字格式                                                                                   | `"repomix-output.xml"` |
 | `output.style`                   | 輸出樣式（`xml`、`markdown`、`json`、`plain`）。每種格式對不同的AI工具都有其優勢                                                   | `"xml"`                |
+| `output.filePathStyle`           | 輸出中顯示檔案路徑的方式（`target-relative` 表示路徑相對於每個目標根目錄，`cwd-relative` 表示路徑相對於目前工作目錄）              | `"target-relative"`    |
 | `output.parsableStyle`           | 是否根據所選樣式模式轉義輸出。可以提供更好的解析，但可能會增加令牌數量                                                    | `false`                |
 | `output.compress`                | 是否使用Tree-sitter執行智慧程式碼提取，在保持結構的同時減少令牌數量                                                       | `false`                |
+| `output.patterns`                | 每個檔案的包含層級。一個有序的 `{ pattern, compress?, directoryStructureOnly? }` 項目陣列；第一個符合的 glob 優先，並覆寫該檔案的全域 `output.compress` 設定。請參閱[每個檔案的包含層級](#每個檔案的包含層級) | 未設定                 |
 | `output.headerText`              | 要包含在檔案頭部的自訂文字。對於為AI工具提供上下文或指令很有用                                                            | `null`                 |
 | `output.instructionFilePath`     | 包含用於AI處理的詳細自訂指令的檔案路徑                                                                                     | `null`                 |
 | `output.fileSummary`             | 是否在輸出開頭包含顯示檔案計數、大小和其他指標的摘要部分                                                                   | `true`                 |
@@ -158,6 +160,7 @@ JavaScript設定檔的工作方式與TypeScript相同，支援`defineConfig`和�
   "output": {
     "filePath": "repomix-output.xml",
     "style": "xml",
+    "filePathStyle": "target-relative",
     "parsableStyle": false,
     "compress": false,
     "headerText": "打包檔案的自訂頭部資訊",
@@ -168,6 +171,10 @@ JavaScript設定檔的工作方式與TypeScript相同，支援`defineConfig`和�
     "removeEmptyLines": false,
     "topFilesLength": 5,
     "showLineNumbers": false,
+    // "patterns": [
+    //   { "pattern": "docs/**/*", "compress": true },
+    //   { "pattern": "website/**/*", "directoryStructureOnly": true }
+    // ],
     "truncateBase64": false,
     "copyToClipboard": false,
     "includeEmptyDirectories": false,
@@ -327,6 +334,37 @@ build/
 - 移除函式本體和實作細節
 
 更多詳細資訊和範例，請參閱[程式碼壓縮指南](code-compress)。
+
+### 每個檔案的包含層級
+
+`output.compress` 會對每個檔案套用單一層級，而 `output.patterns` 則讓您可以從設定檔中**依 glob** 控制細節層級。每個項目透過 glob 鎖定檔案（比對方式與 `include`/`ignore` 相同），並針對符合的檔案覆寫全域 `output.compress` 設定。
+
+```json5
+{
+  "output": {
+    "compress": false, // 全域預設值作為萬用後備
+    "patterns": [
+      { "pattern": "docs/**/*", "compress": true },
+      { "pattern": "website/**/*", "directoryStructureOnly": true }
+    ]
+  }
+}
+```
+
+每個檔案會解析為以下三種層級之一：
+
+- **完整內容**（預設）：包含檔案的完整內容。
+- **壓縮**（`compress: true`）：內容會通過與 `output.compress` 相同的 Tree-sitter 處理流程。
+- **僅目錄結構**（`directoryStructureOnly: true`）：檔案會列在目錄結構中，但其內容區塊會完全從輸出中省略。
+
+規則如下：
+
+- 模式會依陣列順序評估，對於指定的檔案，**第一個符合的模式優先**。
+- 符合的模式的旗標會覆寫全域 `output.compress` 設定。若模式符合但未設定任何旗標，則會強制該檔案使用**完整內容**，這對於將檔案從全域 `compress` 中加入白名單很方便。
+- 當同一個模式同時設定 `directoryStructureOnly` 與 `compress` 時，`directoryStructureOnly` 優先。
+- 若沒有任何模式符合，則套用全域行為（完整內容，或當 `output.compress` 為 `true` 時為壓縮）。
+
+此選項僅限設定檔使用；沒有對應的 CLI 旗標。
 
 ### Git整合
 
