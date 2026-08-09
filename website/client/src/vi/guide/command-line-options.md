@@ -26,6 +26,7 @@ description: Tham khảo mọi tùy chọn Repomix CLI cho input, output, chọn
 |-----------|-------|
 | `-o, --output <file>` | Đường dẫn tệp đầu ra (mặc định: `repomix-output.xml`, sử dụng `"-"` cho stdout) |
 | `--style <style>` | Định dạng đầu ra: `xml`, `markdown`, `json`, hoặc `plain` (mặc định: `xml`) |
+| `--output-file-path-style <style>` | Cách hiển thị đường dẫn tệp trong đầu ra: `target-relative` hoặc `cwd-relative` (mặc định: `target-relative`) |
 | `--parsable-style` | Escape các ký tự đặc biệt để đảm bảo XML/Markdown hợp lệ (cần thiết khi đầu ra chứa mã phá vỡ định dạng) |
 | `--compress` | Trích xuất cấu trúc mã cần thiết (lớp, hàm, interface) sử dụng phân tích Tree-sitter |
 | `--output-show-line-numbers` | Thêm số dòng trước mỗi dòng trong đầu ra |
@@ -61,7 +62,7 @@ description: Tham khảo mọi tùy chọn Repomix CLI cho input, output, chọn
 |-----------|-------|
 | `--remote <url>` | Clone và đóng gói kho lưu trữ từ xa (URL GitHub hoặc định dạng `user/repo`) |
 | `--remote-branch <name>` | Nhánh, tag, hoặc commit cụ thể để sử dụng (mặc định: nhánh mặc định của kho lưu trữ) |
-| `--remote-trust-config` | Tin tưởng và tải tệp cấu hình từ kho lưu trữ từ xa (mặc định bị tắt vì lý do bảo mật) |
+| `--remote-trust-config` | Tin tưởng và tải tệp cấu hình từ kho lưu trữ từ xa. Một cấu hình đáng tin cậy có thể thực thi lệnh và đọc tệp cục bộ, vì vậy chỉ sử dụng cho các kho lưu trữ mà bạn hoàn toàn tin tưởng (mặc định bị tắt vì lý do bảo mật). Trên terminal tương tác, cấu hình được hiển thị và yêu cầu xác nhận |
 
 ## Tùy chọn Cấu hình
 
@@ -88,7 +89,7 @@ description: Tham khảo mọi tùy chọn Repomix CLI cho input, output, chọn
 | `--skill-generate [name]` | Tạo đầu ra định dạng Claude Agent Skills vào thư mục `.claude/skills/<name>/` (tên tự động tạo nếu bỏ qua) |
 | `--skill-project-name <name>` | Ghi đè tên dự án được sử dụng trong mô tả Skills được tạo |
 | `--skill-output <path>` | Chỉ định trực tiếp đường dẫn thư mục đầu ra skill (bỏ qua lời nhắc vị trí) |
-| `-f, --force` | Bỏ qua tất cả lời nhắc xác nhận (ví dụ: ghi đè thư mục skill) |
+| `-f, --force` | Bỏ qua tất cả lời nhắc xác nhận (ghi đè thư mục skill, tin tưởng cấu hình từ xa) |
 
 ## Tùy chọn Chế độ Theo dõi
 

@@ -26,6 +26,7 @@ description: Referensi lengkap opsi CLI Repomix untuk input, output, pemilihan f
 |------|-----------|
 | `-o, --output <file>` | Jalur file output (default: `repomix-output.xml`, gunakan `"-"` untuk stdout) |
 | `--style <style>` | Format output: `xml`, `markdown`, `json`, atau `plain` (default: `xml`) |
+| `--output-file-path-style <style>` | Cara jalur file ditampilkan dalam output: `target-relative` atau `cwd-relative` (default: `target-relative`) |
 | `--parsable-style` | Escape karakter khusus untuk memastikan XML/Markdown yang valid (diperlukan saat output berisi kode yang merusak format) |
 | `--compress` | Mengekstrak struktur kode esensial (kelas, fungsi, interface) menggunakan parsing Tree-sitter |
 | `--output-show-line-numbers` | Menambahkan nomor baris di depan setiap baris dalam output |
@@ -61,7 +62,7 @@ description: Referensi lengkap opsi CLI Repomix untuk input, output, pemilihan f
 |------|-----------|
 | `--remote <url>` | Mengkloning dan mengemas repositori remote (URL GitHub atau format `user/repo`) |
 | `--remote-branch <name>` | Branch, tag, atau commit spesifik yang akan digunakan (default: branch default repositori) |
-| `--remote-trust-config` | Memercayai dan memuat file konfigurasi dari repositori remote (dinonaktifkan secara default untuk keamanan) |
+| `--remote-trust-config` | Memercayai dan memuat file konfigurasi dari repositori remote. Konfigurasi yang dipercaya dapat menjalankan perintah dan membaca file lokal, jadi gunakan opsi ini hanya untuk repositori yang sepenuhnya Anda percayai (dinonaktifkan secara default untuk keamanan). Pada terminal interaktif, konfigurasi ditampilkan dan konfirmasi diminta |
 
 ## Opsi Konfigurasi
 
@@ -88,7 +89,7 @@ description: Referensi lengkap opsi CLI Repomix untuk input, output, pemilihan f
 | `--skill-generate [name]` | Menghasilkan output format Claude Agent Skills ke direktori `.claude/skills/<name>/` (nama otomatis dihasilkan jika dihilangkan) |
 | `--skill-project-name <name>` | Mengganti nama proyek yang digunakan dalam deskripsi Skills yang dihasilkan |
 | `--skill-output <path>` | Menentukan jalur direktori output skill secara langsung (melewati prompt lokasi) |
-| `-f, --force` | Melewati semua prompt konfirmasi (mis. penimpaan direktori skill) |
+| `-f, --force` | Melewati semua prompt konfirmasi (penimpaan direktori skill, kepercayaan konfigurasi remote) |
 
 ## Opsi Mode Watch
 

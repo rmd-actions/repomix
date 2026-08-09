@@ -26,6 +26,7 @@ description: "Consulta tutte le opzioni della CLI Repomix per input, output, sel
 |---------|-------------|
 | `-o, --output <file>` | Percorso del file di output (predefinito: `repomix-output.xml`, usa `"-"` per stdout) |
 | `--style <style>` | Formato di output: `xml`, `markdown`, `json` o `plain` (predefinito: `xml`) |
+| `--output-file-path-style <style>` | Come i percorsi dei file vengono mostrati nell'output: `target-relative` o `cwd-relative` (predefinito: `target-relative`) |
 | `--parsable-style` | Esegue l'escape dei caratteri speciali per garantire XML/Markdown valido (necessario quando l'output contiene codice che interrompe la formattazione) |
 | `--compress` | Estrae la struttura essenziale del codice (classi, funzioni, interfacce) tramite il parsing Tree-sitter |
 | `--output-show-line-numbers` | Prefissa ogni riga con il suo numero di riga nell'output |
@@ -61,7 +62,7 @@ description: "Consulta tutte le opzioni della CLI Repomix per input, output, sel
 |---------|-------------|
 | `--remote <url>` | Clona e impacchetta un repository remoto (URL GitHub o formato `user/repo`) |
 | `--remote-branch <name>` | Branch, tag o commit specifico da usare (predefinito: branch predefinito del repository) |
-| `--remote-trust-config` | Considera affidabili e carica i file di configurazione dai repository remoti (disabilitato per impostazione predefinita per sicurezza) |
+| `--remote-trust-config` | Considera affidabili e carica i file di configurazione dai repository remoti. Una configurazione attendibile può eseguire comandi e leggere file locali, quindi usala solo per repository di cui ti fidi pienamente (disabilitato per impostazione predefinita per sicurezza). In un terminale interattivo, la configurazione viene mostrata e viene richiesta una conferma |
 
 ## Opzioni di Configurazione
 
@@ -88,7 +89,7 @@ description: "Consulta tutte le opzioni della CLI Repomix per input, output, sel
 | `--skill-generate [name]` | Genera output in formato Claude Agent Skills nella directory `.claude/skills/<name>/` (nome auto-generato se omesso) |
 | `--skill-project-name <name>` | Sovrascrivi il nome del progetto usato nelle descrizioni delle Skills generate |
 | `--skill-output <path>` | Specifica direttamente il percorso della directory di output delle skill (salta il prompt di posizione) |
-| `-f, --force` | Salta tutti i prompt di conferma (es: sovrascrittura della directory delle skill) |
+| `-f, --force` | Salta tutti i prompt di conferma (sovrascrittura della directory delle skill, fiducia nella configurazione remota) |
 
 ## Opzioni della modalità Watch
 
