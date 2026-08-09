@@ -8,6 +8,7 @@ import { isExplicitRemoteUrl, isValidShorthand } from '../core/git/gitRemoteUrl.
 import { handleError, RepomixError } from '../shared/errorHandle.js';
 import { logger, repomixLogLevels } from '../shared/logger.js';
 import { parseHumanSizeToBytes } from '../shared/sizeParse.js';
+import { redactOptionsForLog, redactUrl } from '../shared/urlRedact.js';
 import type { CliOptions } from './types.js';
 
 // Semantic mapping for CLI suggestions
@@ -101,6 +102,12 @@ export const run = async () => {
       .optionsGroup('Repomix Output Options')
       .option('-o, --output <file>', 'Output file path (default: repomix-output.xml, use "-" for stdout)')
       .option('--style <type>', 'Output format: xml, markdown, json, or plain (default: xml)')
+      .addOption(
+        new Option(
+          '--output-file-path-style <style>',
+          'How file paths are shown in output: target-relative or cwd-relative (default: target-relative)',
+        ).choices(['target-relative', 'cwd-relative']),
+      )
       .option(
         '--parsable-style',
         'Escape special characters to ensure valid XML/Markdown (needed when output contains code that breaks formatting)',
@@ -161,7 +168,7 @@ export const run = async () => {
       .option('--remote-branch <name>', "Specific branch, tag, or commit to use (default: repository's default branch)")
       .option(
         '--remote-trust-config',
-        'Trust and load config files from remote repositories (disabled by default for security)',
+        'Trust and load config files from remote repositories (disabled by default for security; asks for confirmation on an interactive terminal)',
       )
       // Configuration Options
       .optionsGroup('Configuration Options')
@@ -190,6 +197,10 @@ export const run = async () => {
       // MCP
       .optionsGroup('MCP')
       .option('--mcp', 'Run as Model Context Protocol server for AI tool integration')
+      .option(
+        '--sandbox [dir]',
+        "With --mcp: confine the MCP server's file tools to a workspace directory (defaults to the working directory; e.g. --sandbox path/to/project). Every path is relative to that root, absolute/host paths are refused, and remote packing, skill generation, and attaching external outputs are disabled.",
+      )
       // Skill Generation
       .optionsGroup('Skill Generation (Experimental)')
       .option(
@@ -198,7 +209,7 @@ export const run = async () => {
       )
       .option('--skill-project-name <name>', 'Override the project name used in generated Skills descriptions')
       .option('--skill-output <path>', 'Specify skill output directory path directly (skips location prompt)')
-      .option('-f, --force', 'Skip all confirmation prompts (currently: skill directory overwrite)')
+      .option('-f, --force', 'Skip all confirmation prompts (skill directory overwrite, remote config trust)')
       // Watch Mode
       .optionsGroup('Watch Mode')
       .option('-w, --watch', 'Watch for file changes and automatically re-pack')
@@ -241,7 +252,10 @@ export const run = async () => {
 };
 
 const commanderActionEndpoint = async (directories: string[], options: CliOptions = {}) => {
-  await runCli(directories, process.cwd(), options);
+  // Auto-enable file processors for real CLI invocations only. Library callers
+  // (`runCli`/`pack`) and MCP tools bypass this endpoint, so they default to OFF.
+  // Remote runs downgrade this based on --remote-trust-config in runRemoteAction.
+  await runCli(directories, process.cwd(), { enableFileProcessors: true, ...options });
 };
 
 /**
@@ -281,6 +295,44 @@ const validateWatchOptions = (directories: string[], options: CliOptions): void 
   }
 };
 
+/**
+ * Canonicalize the --sandbox workspace root for the always-on path guard. realpath
+ * resolves symlinks (e.g. macOS /tmp -> /private/tmp) so the guard, output
+ * virtualization, and error scrubbing all agree with the realpaths resolveWithinRoot
+ * returns; a lexical-only root would silently weaken every guard that compares
+ * canonical child paths against it.
+ *
+ * Windows quirk: fs.realpath throws EPERM on some perfectly accessible directories
+ * (notably the 8.3 short-name temp path C:\Users\RUNNER~1\...). resolveWithinRoot
+ * already tolerates this by falling back to the lexical root, so match it here: when
+ * realpath fails but the directory genuinely exists, use the lexical (already
+ * absolute) root instead of refusing to start. A truly missing/inaccessible root
+ * still fails closed. The kernel sandbox grants on the directory OBJECT, not its
+ * name, so a short-name lexical root is confined identically — and because the guard
+ * canonicalizes root and candidates with the same realpath+lexical-fallback, they
+ * stay consistent.
+ */
+export const canonicalizeSandboxRoot = async (
+  requestedRoot: string,
+  deps = { realpath: (p: string) => fs.realpath(p), stat: (p: string) => fs.stat(p) },
+): Promise<string> => {
+  try {
+    return await deps.realpath(requestedRoot);
+  } catch (realpathError) {
+    try {
+      if ((await deps.stat(requestedRoot)).isDirectory()) {
+        return path.resolve(requestedRoot);
+      }
+    } catch {
+      // Directory is genuinely missing/inaccessible — fall through to fail closed.
+    }
+    const message = realpathError instanceof Error ? realpathError.message : String(realpathError);
+    throw new RepomixError(
+      `--sandbox workspace directory could not be resolved (${message}). Ensure it exists and is accessible.`,
+    );
+  }
+};
+
 export const runCli = async (directories: string[], cwd: string, options: CliOptions) => {
   // Detect stdout mode
   // NOTE: For compatibility, currently not detecting pipe mode
@@ -306,13 +358,27 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
     logger.setLogLevel(repomixLogLevels.SILENT);
   }
 
-  logger.trace('directories:', directories);
+  // A positional argument can itself be a remote URL, and `options.remote` holds
+  // one by definition, so both are redacted before being dumped.
+  logger.trace('directories:', directories.map(redactUrl));
   logger.trace('cwd:', cwd);
-  logger.trace('options:', options);
+  logger.trace('options:', redactOptionsForLog(options));
+
+  const sandboxed = options.sandbox != null && options.sandbox !== false;
+
+  if (sandboxed && !options.mcp) {
+    logger.warn('--sandbox has no effect without --mcp; it only confines the MCP server.');
+  }
 
   if (options.mcp) {
+    // A string value of --sandbox is the workspace dir to confine to; otherwise use cwd.
+    const requestedRoot = typeof options.sandbox === 'string' ? path.resolve(cwd, options.sandbox) : cwd;
+    // Canonicalize the root so the guard/virtualization/error-scrubbing agree with the
+    // realpaths resolveWithinRoot returns. Runs before any agent connects, so surfacing
+    // the operator's own path in a resolution error is fine.
+    const sandboxRoot = sandboxed ? await canonicalizeSandboxRoot(requestedRoot) : requestedRoot;
     const { runMcpAction } = await import('./actions/mcpAction.js');
-    return await runMcpAction();
+    return await runMcpAction({ sandboxed, cwd: sandboxRoot });
   }
 
   if (options.version) {
@@ -340,7 +406,7 @@ export const runCli = async (directories: string[], cwd: string, options: CliOpt
 
   // Auto-detect explicit remote URLs (https://, git@, ssh://, git://) in positional arguments
   if (directories.length === 1 && isExplicitRemoteUrl(directories[0])) {
-    logger.trace(`Auto-detected remote URL from positional argument: ${directories[0]}`);
+    logger.trace(`Auto-detected remote URL from positional argument: ${redactUrl(directories[0])}`);
     const { runRemoteAction } = await import('./actions/remoteAction.js');
     return await runRemoteAction(directories[0], options);
   }
