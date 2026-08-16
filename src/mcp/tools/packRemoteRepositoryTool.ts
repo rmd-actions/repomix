@@ -5,11 +5,13 @@ import { z } from 'zod';
 import { runCli } from '../../cli/cliRun.js';
 import type { CliOptions } from '../../cli/types.js';
 import { defaultFilePathMap } from '../../config/configSchema.js';
+import { redactUrl } from '../../shared/urlRedact.js';
 import {
   buildMcpToolErrorResponse,
   convertErrorToJson,
   createToolWorkspace,
   formatPackToolResponse,
+  outputPatternsSchema,
 } from './mcpToolRuntime.js';
 
 const packRemoteRepositoryInputSchema = z.object({
@@ -36,6 +38,7 @@ const packRemoteRepositoryInputSchema = z.object({
     .describe(
       'Specify additional files to exclude using fast-glob patterns. Multiple patterns can be comma-separated (e.g., "test/**,*.spec.js", "node_modules/**,dist/**"). These patterns supplement .gitignore and built-in exclusions.',
     ),
+  outputPatterns: outputPatternsSchema,
   topFilesLength: z
     .number()
     .int()
@@ -67,7 +70,7 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
     {
       title: 'Pack Remote Repository',
       description:
-        'Fetch, clone, and package a GitHub repository into a consolidated file for AI analysis. This tool automatically clones the remote repository, analyzes its structure, and generates a comprehensive report. Supports multiple output formats: XML (structured with <file> tags), Markdown (human-readable with ## headers and code blocks), JSON (machine-readable with files as key-value pairs), and Plain text (simple format with separators). Also supports various GitHub URL formats and includes security checks to prevent exposure of sensitive information.',
+        'Fetch, clone, and package a GitHub repository into a consolidated file for AI analysis. This tool automatically clones the remote repository, analyzes its structure, and generates a comprehensive report. Supports multiple output formats: XML (structured with <file> tags), Markdown (human-readable with ## headers and code blocks), JSON (machine-readable with files as key-value pairs), and Plain text (simple format with separators). Also supports various GitHub URL formats. Files matching known secret formats are excluded, but that scan is a heuristic, not an access boundary.',
       inputSchema: packRemoteRepositoryInputSchema,
       outputSchema: packRemoteRepositoryOutputSchema,
       annotations: {
@@ -77,7 +80,15 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
         openWorldHint: true,
       },
     },
-    async ({ remote, compress, includePatterns, ignorePatterns, topFilesLength, style }): Promise<CallToolResult> => {
+    async ({
+      remote,
+      compress,
+      includePatterns,
+      ignorePatterns,
+      outputPatterns,
+      topFilesLength,
+      style,
+    }): Promise<CallToolResult> => {
       let tempDir = '';
 
       try {
@@ -90,6 +101,7 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
           compress,
           include: includePatterns,
           ignore: ignorePatterns,
+          outputPatterns,
           output: outputFilePath,
           style,
           securityCheck: true,
@@ -107,7 +119,15 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
         // Extract metrics information from the pack result
         const { packResult } = result;
 
-        return await formatPackToolResponse({ repository: remote }, packResult, outputFilePath, topFilesLength);
+        // The echoed repository is descriptive metadata only, so it is redacted:
+        // a credentialed remote would otherwise persist in the MCP transcript,
+        // the client's logs, and the model's context.
+        return await formatPackToolResponse(
+          { repository: redactUrl(remote) },
+          packResult,
+          outputFilePath,
+          topFilesLength,
+        );
       } catch (error) {
         return buildMcpToolErrorResponse(convertErrorToJson(error));
       }

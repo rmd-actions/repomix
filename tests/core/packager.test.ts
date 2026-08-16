@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { pack } from '../../src/core/packager.js';
 import { createMockConfig } from '../testing/testUtils.js';
@@ -21,7 +20,10 @@ describe('packager', () => {
   });
 
   test('pack should orchestrate packing files and generating output', async () => {
-    const file2Path = path.join('dir1', 'file2.txt');
+    // Use a POSIX separator: globby yields forward-slash paths on every platform
+    // and pack() normalizes display paths to forward slashes, so the mock must match
+    // that (path.join would emit "dir1\\file2.txt" on Windows and fail the assertion).
+    const file2Path = 'dir1/file2.txt';
     const mockRawFiles = [
       { path: 'file1.txt', content: 'raw content 1' },
       { path: file2Path, content: 'raw content 2' },
@@ -79,21 +81,26 @@ describe('packager', () => {
     const progressCallback = vi.fn();
     const result = await pack(['root'], mockConfig, progressCallback, mockDeps);
 
-    expect(mockDeps.searchFiles).toHaveBeenCalledWith('root', mockConfig, undefined);
+    expect(mockDeps.searchFiles).toHaveBeenCalledWith('root', mockConfig, undefined, undefined);
     expect(mockDeps.collectFiles).toHaveBeenCalledWith(mockFilePaths, 'root', mockConfig, progressCallback);
     expect(mockDeps.validateFileSafety).toHaveBeenCalled();
     expect(mockDeps.processFiles).toHaveBeenCalled();
     expect(mockDeps.produceOutput).toHaveBeenCalled();
     expect(mockDeps.calculateMetrics).toHaveBeenCalled();
 
+    // pack() resolves each file's inclusion level (against its per-root-relative
+    // path) and carries it on the raw file before handing them to the security
+    // check and file processing. With the default config every file resolves to
+    // 'full'.
+    const expectedLeveledRawFiles = mockRawFiles.map((file) => ({ ...file, level: 'full' as const }));
     expect(mockDeps.validateFileSafety).toHaveBeenCalledWith(
-      mockRawFiles,
+      expectedLeveledRawFiles,
       progressCallback,
       mockConfig,
       undefined,
       undefined,
     );
-    expect(mockDeps.processFiles).toHaveBeenCalledWith(mockRawFiles, mockConfig, progressCallback);
+    expect(mockDeps.processFiles).toHaveBeenCalledWith(expectedLeveledRawFiles, mockConfig, progressCallback);
     expect(mockDeps.produceOutput).toHaveBeenCalledWith(
       ['root'],
       mockConfig,
@@ -132,6 +139,65 @@ describe('packager', () => {
       [file2Path]: 10,
     });
     expect(result.skippedFiles).toEqual([]);
+  });
+
+  test('applies file processors per root and passes the transformed content to the security check and processing', async () => {
+    const collectedRawFiles = [{ path: 'a.json', content: 'raw content' }];
+    const transformedRawFiles = [{ path: 'a.json', content: 'transformed content' }];
+    const mockFilePaths = ['a.json'];
+
+    const applyFileProcessors = vi.fn().mockResolvedValue(transformedRawFiles);
+
+    const mockDeps = {
+      searchFiles: vi.fn().mockResolvedValue({ filePaths: mockFilePaths, emptyDirPaths: [] }),
+      sortPaths: vi.fn().mockImplementation((paths) => paths),
+      collectFiles: vi.fn().mockResolvedValue({ rawFiles: collectedRawFiles, skippedFiles: [] }),
+      applyFileProcessors,
+      processFiles: vi.fn().mockReturnValue([{ path: 'a.json', content: 'transformed content' }]),
+      validateFileSafety: vi.fn().mockResolvedValue({
+        safeFilePaths: mockFilePaths,
+        safeRawFiles: transformedRawFiles,
+        suspiciousFilesResults: [],
+        suspiciousGitDiffResults: [],
+        suspiciousGitLogResults: [],
+      }),
+      produceOutput: vi.fn().mockResolvedValue({ outputForMetrics: 'out' }),
+      createMetricsTaskRunner: vi.fn().mockReturnValue({
+        taskRunner: { run: vi.fn().mockResolvedValue(0), cleanup: vi.fn().mockResolvedValue(undefined) },
+        warmupPromise: Promise.resolve(),
+      }),
+      calculateMetrics: vi.fn().mockResolvedValue({
+        totalFiles: 1,
+        totalCharacters: 0,
+        totalTokens: 0,
+        fileCharCounts: {},
+        fileTokenCounts: {},
+        gitDiffTokenCount: 0,
+        gitLogTokenCount: 0,
+      }),
+    };
+
+    const config = createMockConfig();
+    const progressCallback = vi.fn();
+    await pack(['root'], config, progressCallback, mockDeps);
+
+    // Processors run per root, on the collected per-root-relative files (before path rewrite).
+    expect(applyFileProcessors).toHaveBeenCalledWith(collectedRawFiles, 'root', config, progressCallback);
+
+    // The security scan and file processing must operate on the TRANSFORMED content
+    // (what actually ships), not the original collected content.
+    expect(mockDeps.validateFileSafety).toHaveBeenCalledWith(
+      [expect.objectContaining({ path: 'a.json', content: 'transformed content' })],
+      progressCallback,
+      config,
+      undefined,
+      undefined,
+    );
+    expect(mockDeps.processFiles).toHaveBeenCalledWith(
+      [expect.objectContaining({ path: 'a.json', content: 'transformed content' })],
+      config,
+      progressCallback,
+    );
   });
 
   describe('parallel error handling', () => {

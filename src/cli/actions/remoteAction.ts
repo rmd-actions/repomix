@@ -10,8 +10,10 @@ import { isGitInstalled } from '../../core/git/gitRepositoryHandle.js';
 import { generateDefaultSkillNameFromUrl, generateProjectNameFromUrl } from '../../core/skill/skillUtils.js';
 import { RepomixError } from '../../shared/errorHandle.js';
 import { logger } from '../../shared/logger.js';
+import { redactErrorMessage, redactUrl } from '../../shared/urlRedact.js';
 import { Spinner } from '../cliSpinner.js';
 import { validateTokenBudget } from '../cliTokenBudget.js';
+import { confirmRemoteConfigTrust } from '../prompts/remoteConfigTrustPrompt.js';
 import { promptSkillLocation, resolveAndPrepareSkillDir } from '../prompts/skillPrompts.js';
 import type { CliOptions } from '../types.js';
 import { type DefaultActionRunnerResult, runDefaultAction } from './defaultAction.js';
@@ -28,6 +30,7 @@ export const runRemoteAction = async (
     isGitHubRepository,
     parseGitHubRepoInfo,
     isArchiveDownloadSupported,
+    confirmRemoteConfigTrust,
   },
 ): Promise<DefaultActionRunnerResult> => {
   // Validate --config path before any expensive operations (download/clone):
@@ -101,6 +104,22 @@ export const runRemoteAction = async (
       downloadMethod = 'git';
     }
 
+    const trustRemoteConfig = cliOptions.remoteTrustConfig || process.env.REPOMIX_REMOTE_TRUST_CONFIG === 'true';
+
+    // When trusting a remote repo's config, confirm with the user first (unless
+    // --force / non-interactive / already trusted). Throws if the user declines.
+    // Asked before the skill-location prompt so a decline does not first make the
+    // user answer a question whose answer is then thrown away.
+    if (trustRemoteConfig) {
+      await deps.confirmRemoteConfigTrust({
+        repoDir: tempDirPath,
+        repoUrl,
+        force: cliOptions.force ?? false,
+        stdout: cliOptions.stdout ?? false,
+        hasExplicitConfig: Boolean(cliOptions.config),
+      });
+    }
+
     // For skill generation, prompt for location using current directory (not temp directory)
     let skillName: string | undefined;
     let skillDir: string | undefined;
@@ -130,8 +149,11 @@ export const runRemoteAction = async (
 
     // Run the default action on the downloaded/cloned repository
     // Pass the pre-computed skill name, directory, project name, and source URL
-    const skillSourceUrl = cliOptions.skillGenerate !== undefined ? repoUrl : undefined;
-    const trustRemoteConfig = cliOptions.remoteTrustConfig || process.env.REPOMIX_REMOTE_TRUST_CONFIG === 'true';
+    // Redacted at the source: this URL is only ever rendered as a link in the
+    // generated SKILL.md, never used to reach the network. Leaving it raw would
+    // persist a credentialed remote into a file the user is likely to commit.
+    const skillSourceUrl = cliOptions.skillGenerate !== undefined ? redactUrl(repoUrl) : undefined;
+
     const optionsWithSkill = {
       ...cliOptions,
       skillName,
@@ -139,6 +161,18 @@ export const runRemoteAction = async (
       skillProjectName,
       skillSourceUrl,
       skipLocalConfig: !trustRemoteConfig,
+      // --force has already done its job here: it suppressed the trust confirmation
+      // above. runDefaultAction rejects --force without --skill-generate, so
+      // forwarding it would make the documented `--remote-trust-config --force`
+      // escape hatch always throw. When nothing consumed the flag, forward it so
+      // that validation still reports the misuse.
+      force: trustRemoteConfig && cliOptions.skillGenerate === undefined ? undefined : cliOptions.force,
+      // Never migrate a remote clone: it would rewrite legacy Repopack files in the
+      // temp dir into a repomix.config.* that the trust prompt never reviewed.
+      skipMigration: true,
+      // File processors from a cloned repo's config run arbitrary commands, so
+      // they are only honored when the user explicitly trusts remote config.
+      enableFileProcessors: (cliOptions.enableFileProcessors ?? false) && trustRemoteConfig,
       // Defer the token-budget check so the output is copied out of the temp
       // dir below before the guard can throw; we run validateTokenBudget here
       // afterwards. Otherwise an over-budget remote run would throw inside
@@ -152,7 +186,10 @@ export const runRemoteAction = async (
     // For skill generation, the skill is already written directly to the target directory
     // (either via --skill-output path or via promptSkillLocation which uses process.cwd())
     if (!cliOptions.stdout && result.config.skillGenerate === undefined) {
-      await copyOutputToCurrentDirectory(tempDirPath, process.cwd(), result.config.output.filePath);
+      const outputFiles = result.packResult.outputFiles ?? [result.config.output.filePath];
+      for (const outputFile of outputFiles) {
+        await copyOutputToCurrentDirectory(tempDirPath, process.cwd(), outputFile);
+      }
     }
 
     // Enforce the token budget now that the output has been delivered (copied
@@ -191,7 +228,7 @@ const performGitClone = async (
     refs = await deps.getRemoteRefs(parseRemoteValue(repoUrl).repoUrl);
     logger.trace(`Retrieved ${refs.length} refs from remote repository`);
   } catch (error) {
-    logger.trace('Failed to get remote refs, proceeding without them:', (error as Error).message);
+    logger.trace('Failed to get remote refs, proceeding without them:', redactErrorMessage(error));
   }
 
   // Parse the remote URL with the refs information
@@ -229,13 +266,13 @@ export const cloneRepository = async (
     execGitShallowClone,
   },
 ): Promise<void> => {
-  logger.log(`Clone repository: ${url} to temporary directory. ${pc.dim(`path: ${directory}`)}`);
+  logger.log(`Clone repository: ${redactUrl(url)} to temporary directory. ${pc.dim(`path: ${directory}`)}`);
   logger.log('');
 
   try {
     await deps.execGitShallowClone(url, directory, remoteBranch);
   } catch (error) {
-    throw new RepomixError(`Failed to clone repository: ${(error as Error).message}`);
+    throw new RepomixError(`Failed to clone repository: ${redactErrorMessage(error)}`);
   }
 };
 

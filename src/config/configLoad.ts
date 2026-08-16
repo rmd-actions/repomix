@@ -57,6 +57,17 @@ const findConfigFile = async (configPaths: string[], logPrefix: string): Promise
   return null;
 };
 
+/**
+ * Returns the absolute path of the local repomix config file under `rootDir`,
+ * or null if none exists. Uses the same name/priority order as config loading,
+ * so callers (e.g. the remote-config trust prompt) resolve exactly the file
+ * that would be loaded.
+ */
+export const findLocalConfigPath = async (rootDir: string): Promise<string | null> => {
+  const localConfigPaths = defaultConfigPaths.map((configPath) => path.resolve(rootDir, configPath));
+  return findConfigFile(localConfigPaths, 'local');
+};
+
 // Default jiti import implementation for loading JS/TS config files
 // Lazy-loads jiti to avoid importing its heavy TypeScript toolchain
 // when using JSON/JSON5 config files or default config (the common case).
@@ -74,7 +85,7 @@ const defaultJitiImport = async (fileUrl: string): Promise<unknown> => {
 export const loadFileConfig = async (
   rootDir: string,
   argConfigPath: string | null,
-  options: { skipLocalConfig?: boolean } = {},
+  options: { skipLocalConfig?: boolean; skipGlobalConfig?: boolean } = {},
   deps = {
     jitiImport: defaultJitiImport,
   },
@@ -93,8 +104,7 @@ export const loadFileConfig = async (
   }
 
   // Try to find a local config file using the priority order
-  const localConfigPaths = defaultConfigPaths.map((configPath) => path.resolve(rootDir, configPath));
-  const localConfigPath = await findConfigFile(localConfigPaths, 'local');
+  const localConfigPath = await findLocalConfigPath(rootDir);
 
   if (localConfigPath) {
     if (!options.skipLocalConfig) {
@@ -107,9 +117,12 @@ export const loadFileConfig = async (
     );
   }
 
-  // Try to find a global config file using the priority order
+  // Try to find a global config file using the priority order. skipGlobalConfig
+  // (set for untrusted-agent contexts like --sandbox) skips it too: even the
+  // operator's own global config can set output.instructionFilePath to read an
+  // out-of-workspace file into the output shown to the untrusted agent.
   const globalConfigPaths = getGlobalConfigPaths();
-  const globalConfigPath = await findConfigFile(globalConfigPaths, 'global');
+  const globalConfigPath = options.skipGlobalConfig ? null : await findConfigFile(globalConfigPaths, 'global');
 
   if (globalConfigPath) {
     return await loadAndValidateConfig(globalConfigPath, deps);
@@ -130,6 +143,17 @@ const getFileExtension = (filePath: string): string => {
   return match ? match[1] : '';
 };
 
+// Config extensions that are executed on load (via jiti) rather than parsed as data.
+const EXECUTABLE_CONFIG_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'];
+
+/**
+ * Whether loading this config file runs its code. The remote-config trust prompt
+ * uses this to decide whether to warn that the config is executable, so it has to
+ * describe exactly the set this module actually hands to jiti.
+ */
+export const isExecutableConfigPath = (filePath: string): boolean =>
+  EXECUTABLE_CONFIG_EXTENSIONS.includes(getFileExtension(filePath));
+
 // Dependency injection allows mocking jiti in tests to prevent double instrumentation.
 // Without this, jiti transforms src/ files that are already instrumented by Vitest,
 // causing coverage instability (results varied by ~2% on each test run).
@@ -143,13 +167,8 @@ const loadAndValidateConfig = async (
     let config: unknown;
     const ext = getFileExtension(filePath);
 
-    switch (ext) {
-      case 'ts':
-      case 'mts':
-      case 'cts':
-      case 'js':
-      case 'mjs':
-      case 'cjs': {
+    switch (EXECUTABLE_CONFIG_EXTENSIONS.includes(ext) ? 'executable' : ext) {
+      case 'executable': {
         // Use jiti for TypeScript and JavaScript files
         // This provides consistent behavior and avoids Node.js module cache issues
         const imported = await deps.jitiImport(pathToFileURL(filePath).href);
@@ -259,6 +278,8 @@ export const mergeConfigs = (
     },
     // Skill generation (CLI only)
     ...(cliConfig.skillGenerate !== undefined && { skillGenerate: cliConfig.skillGenerate }),
+    // File processors gate (CLI/entry-point only; never set from a config file)
+    ...(cliConfig.enableFileProcessors !== undefined && { enableFileProcessors: cliConfig.enableFileProcessors }),
   };
 
   try {

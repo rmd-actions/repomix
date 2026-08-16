@@ -26,6 +26,7 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 |------|------|
 | `-o, --output <file>` | 출력 파일 경로 (기본값: `repomix-output.xml`, 표준출력은 `"-"` 사용) |
 | `--style <style>` | 출력 형식: `xml`, `markdown`, `json`, 또는 `plain` (기본값: `xml`) |
+| `--output-file-path-style <style>` | 출력에 파일 경로를 표시하는 방식: `target-relative` 또는 `cwd-relative` (기본값: `target-relative`) |
 | `--parsable-style` | 유효한 XML/Markdown을 보장하기 위해 특수 문자 이스케이프 (출력에 서식을 깨는 코드가 포함된 경우 필요) |
 | `--compress` | Tree-sitter 파싱을 사용하여 핵심 코드 구조 추출 (클래스, 함수, 인터페이스) |
 | `--output-show-line-numbers` | 출력의 각 줄에 줄 번호 접두사 추가 |
@@ -61,7 +62,7 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 |------|------|
 | `--remote <url>` | 원격 저장소 클론 및 패키징 (GitHub URL 또는 `user/repo` 형식) |
 | `--remote-branch <name>` | 사용할 특정 브랜치, 태그 또는 커밋 (기본값: 저장소의 기본 브랜치) |
-| `--remote-trust-config` | 원격 저장소의 설정 파일을 신뢰하고 로드 (보안상 기본적으로 비활성화) |
+| `--remote-trust-config` | 원격 저장소의 설정 파일을 신뢰하고 로드합니다. 신뢰된 설정은 명령을 실행하거나 로컬 파일을 읽을 수 있으므로, 완전히 신뢰하는 저장소에서만 사용하세요 (보안상 기본적으로 비활성화). 대화형 터미널에서는 설정을 표시하고 확인을 요청합니다 |
 
 ## 구성 옵션
 
@@ -80,6 +81,7 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 
 ## MCP 옵션
 - `--mcp`: AI 도구 통합을 위한 Model Context Protocol 서버로 실행
+- `--sandbox [dir]`: (`--mcp`와 함께 사용) MCP 서버의 파일 도구를 작업 공간 디렉토리로 제한합니다 (기본값: 작업 디렉토리; 예: `--sandbox path/to/project`). 모든 경로는 해당 루트를 기준으로 하며, 절대 경로/호스트 경로는 거부되고, 원격 패키징, 스킬 생성, 외부 출력 첨부가 비활성화됩니다. 자세한 내용은 [MCP 서버](/ko/guide/mcp-server) 문서를 참조하세요.
 
 ## Agent Skills 생성 옵션
 
@@ -88,7 +90,7 @@ description: "입력, 출력, 파일 선택, 원격 저장소, 설정, 보안, �
 | `--skill-generate [name]` | Claude Agent Skills 형식 출력을 `.claude/skills/<name>/` 디렉토리에 생성 (이름 생략 시 자동 생성) |
 | `--skill-project-name <name>` | 생성된 Skills 설명에 사용되는 프로젝트 이름을 재정의 |
 | `--skill-output <path>` | 스킬 출력 디렉토리 경로를 직접 지정 (위치 선택 프롬프트 건너뜀) |
-| `-f, --force` | 모든 확인 프롬프트 건너뜀 (예: 스킬 디렉토리 덮어쓰기) |
+| `-f, --force` | 모든 확인 프롬프트 건너뜀 (스킬 디렉토리 덮어쓰기, 원격 설정 신뢰) |
 
 ## 감시 모드 옵션
 
