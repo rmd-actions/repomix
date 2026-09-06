@@ -62,7 +62,7 @@ description: "Consultez toutes les options de la CLI Repomix pour l'entrée, la 
 |--------|-------------|
 | `--remote <url>` | Cloner et empaqueter un dépôt distant (URL GitHub ou format `user/repo`) |
 | `--remote-branch <name>` | Branche, tag ou commit spécifique à utiliser (par défaut : branche par défaut du dépôt) |
-| `--remote-trust-config` | Faire confiance et charger les fichiers de configuration des dépôts distants (désactivé par défaut pour la sécurité) |
+| `--remote-trust-config` | Faire confiance et charger les fichiers de configuration des dépôts distants. Une configuration de confiance peut exécuter des commandes et lire des fichiers locaux ; n'utilisez cette option que pour des dépôts auxquels vous faites entièrement confiance (désactivé par défaut pour la sécurité). Dans un terminal interactif, la configuration est affichée et une confirmation est demandée |
 
 ## Options de configuration
 
@@ -81,6 +81,7 @@ description: "Consultez toutes les options de la CLI Repomix pour l'entrée, la 
 
 ## Options MCP
 - `--mcp`: Fonctionner comme serveur Model Context Protocol pour l'intégration d'outils IA
+- `--sandbox [dir]`: (avec `--mcp`) Confiner les outils de fichiers du serveur MCP à un répertoire de travail (par défaut le répertoire courant ; ex : `--sandbox path/to/project`). Chaque chemin est relatif à cette racine, les chemins absolus/de l'hôte sont refusés, et l'empaquetage de dépôts distants, la génération de skills et l'attachement de sorties externes sont désactivés. Voir [Serveur MCP](/fr/guide/mcp-server).
 
 ## Options de génération d'Agent Skills
 
@@ -89,7 +90,7 @@ description: "Consultez toutes les options de la CLI Repomix pour l'entrée, la 
 | `--skill-generate [name]` | Générer une sortie au format Claude Agent Skills dans le répertoire `.claude/skills/<name>/` (nom auto-généré si omis) |
 | `--skill-project-name <name>` | Remplacer le nom du projet utilisé dans les descriptions des Skills générées |
 | `--skill-output <path>` | Spécifier directement le chemin du répertoire de sortie des skills (ignore l'invite d'emplacement) |
-| `-f, --force` | Ignorer toutes les invites de confirmation (ex : remplacement du répertoire de skills) |
+| `-f, --force` | Ignorer toutes les invites de confirmation (remplacement du répertoire de skills, confiance accordée à la configuration distante) |
 
 ## Options du mode surveillance
 

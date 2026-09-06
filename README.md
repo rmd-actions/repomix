@@ -89,7 +89,7 @@ This wouldn't have been possible without all of you using and supporting Repomix
 - **Simple to Use**: You need just one command to pack your entire repository.
 - **Customizable**: Easily configure what to include or exclude.
 - **Git-Aware**: Automatically respects your `.gitignore`, `.ignore`, and `.repomixignore` files.
-- **Security-Focused**: Incorporates [Secretlint](https://github.com/secretlint/secretlint) for robust security checks to detect and prevent inclusion of sensitive information.
+- **Security-Focused**: Incorporates [Secretlint](https://github.com/secretlint/secretlint) to detect files matching known credential formats and leave them out of the output.
 - **Code Compression**: The `--compress` option uses [Tree-sitter](https://github.com/tree-sitter/tree-sitter) to extract key code elements, reducing token count while preserving structure.
 
 ## 🚀 Quick Start
@@ -662,7 +662,7 @@ Instruction
 |--------|-------------|
 | `--remote <url>` | Clone and pack a remote repository (GitHub URL or `user/repo` format) |
 | `--remote-branch <name>` | Specific branch, tag, or commit to use (default: repository's default branch) |
-| `--remote-trust-config` | Trust and load config files from remote repositories (disabled by default for security) |
+| `--remote-trust-config` | Trust and load config files from remote repositories (disabled by default for security). On an interactive terminal, the config is shown and you are asked to confirm |
 
 #### Configuration Options
 
@@ -681,6 +681,7 @@ Instruction
 
 #### MCP
 - `--mcp`: Run as Model Context Protocol server for AI tool integration
+- `--sandbox [dir]`: (with `--mcp`) confine the MCP server's file tools to a workspace directory (defaults to the working directory; e.g. `--sandbox path/to/project`) — every path is relative to that root, absolute/host paths are refused, and remote packing, skill generation, and attaching external outputs are disabled.
 
 #### Agent Skills Generation
 
@@ -689,7 +690,7 @@ Instruction
 | `--skill-generate [name]` | Generate Claude Agent Skills format output to `.claude/skills/<name>/` directory (name auto-generated if omitted) |
 | `--skill-project-name <name>` | Override the project name used in generated Skills descriptions |
 | `--skill-output <path>` | Specify skill output directory path directly (skips location prompt) |
-| `-f, --force` | Skip all confirmation prompts (e.g., skill directory overwrite) |
+| `-f, --force` | Skip all confirmation prompts (skill directory overwrite, remote config trust) |
 
 #### Watch Mode
 - `-w, --watch`: Watch for file changes and automatically re-pack. Debounces rapid changes (300ms) and logs a timestamp on each rebuild. Stop with `Ctrl+C`.
@@ -789,7 +790,7 @@ repomix --remote https://github.com/yamadashy/repomix/commit/836abcd7335137228ad
 ```
 
 > [!NOTE]
-> For security, config files (`repomix.config.*`) in remote repositories are not loaded by default. This prevents untrusted repositories from executing code via config files. Your global config and CLI options are still applied. To trust a remote repository's config, use `--remote-trust-config` or set `REPOMIX_REMOTE_TRUST_CONFIG=true`.
+> For security, config files (`repomix.config.*`) in remote repositories are not loaded by default. This prevents untrusted repositories from executing code via config files. Your global config and CLI options are still applied. To trust a remote repository's config, use `--remote-trust-config` or set `REPOMIX_REMOTE_TRUST_CONFIG=true` — on an interactive terminal Repomix then shows that config and asks you to confirm before loading it. See [Remote Repository Config Trust](#remote-repository-config-trust).
 >
 > When using `--config` with `--remote`, an absolute path is required (e.g., `--config /home/user/repomix.config.json`).
 
@@ -941,6 +942,20 @@ Repomix supports the [Model Context Protocol (MCP)](https://modelcontextprotocol
 repomix --mcp
 ```
 
+#### Sandbox Mode
+
+By default the MCP server can read any path the host user can. That is convenient for a trusted local assistant, but too broad when the server is exposed to an untrusted client or agent. The `--sandbox` flag confines the server's file tools to a single workspace directory:
+
+```bash
+# Confine to the current working directory
+repomix --mcp --sandbox
+
+# Confine to a specific directory
+repomix --mcp --sandbox path/to/project
+```
+
+When sandbox mode is on, every path is relative to the workspace root (absolute, `~`, `..`, and Windows drive/UNC paths are refused, as are paths that resolve outside the root through symlinks), and only the read-only, root-confined tools are registered; remote packing, skill generation, and attaching external outputs are disabled. The raw file tools (`file_system_read_file`, `file_system_read_directory`) are available only in sandbox mode, where the workspace root bounds what they can reach. This is an application-level confinement of the tool surface, not an OS-level sandbox. See the [MCP Server guide](https://repomix.com/guide/mcp-server) for details.
+
 #### Configuring MCP Servers
 
 To use Repomix as an MCP server with AI assistants like Claude, you need to configure the MCP settings:
@@ -1044,7 +1059,7 @@ When running as an MCP server, Repomix provides the following tools:
   - Features:
     - Accepts either a directory containing a repomix-output.xml file or a direct path to an XML file
     - Registers the file with the MCP server and returns the same structure as the pack_codebase tool
-    - Provides secure access to existing packed outputs without requiring re-processing
+    - Provides access to existing packed outputs without requiring re-processing
     - Useful for working with previously generated packed repositories
 
 3. **pack_remote_repository**: Fetch, clone, and package a GitHub repository into a consolidated XML file for AI analysis
@@ -1064,7 +1079,7 @@ When running as an MCP server, Repomix provides the following tools:
   - Features:
     - Specifically designed for web-based environments or sandboxed applications
     - Retrieves the content of previously generated outputs using their ID
-    - Provides secure access to packed codebase without requiring file system access
+    - Provides access to packed codebase without requiring file system access
     - Supports partial reading for large files
 
 5. **grep_repomix_output**: Search for patterns in a Repomix output file using grep-like functionality with JavaScript RegExp syntax
@@ -1081,21 +1096,18 @@ When running as an MCP server, Repomix provides the following tools:
     - Allows separate control of before/after context lines
     - Case-sensitive and case-insensitive search options
 
-6. **file_system_read_file**: Read a file from the local file system using an absolute path. Includes built-in security validation to detect and prevent access to files containing sensitive information.
+6. **file_system_read_file**: Read a file inside the sandbox workspace. Only available in [sandbox mode](#sandbox-mode) (`--sandbox`), where the workspace root bounds what it can reach.
   - Parameters:
-    - `path`: Absolute path to the file to read
-  - Security features:
-    - Implements security validation using [Secretlint](https://github.com/secretlint/secretlint)
-    - Prevents access to files containing sensitive information (API keys, passwords, secrets)
-    - Validates absolute paths to prevent directory traversal attacks
+    - `path`: Path to the file to read, relative to the workspace root (e.g. `src/index.ts`)
+  - Notes:
+    - Not registered without `--sandbox`
+    - Content matching known secret formats ([Secretlint](https://github.com/secretlint/secretlint)) is refused as an additional heuristic safeguard — the access boundary is the workspace root, not the scan
 
-7. **file_system_read_directory**: List the contents of a directory using an absolute path. Returns a formatted list showing files and subdirectories with clear indicators.
+7. **file_system_read_directory**: List the contents of a directory inside the sandbox workspace. Only available in [sandbox mode](#sandbox-mode) (`--sandbox`).
   - Parameters:
-    - `path`: Absolute path to the directory to list
+    - `path`: Path to the directory to list, relative to the workspace root (e.g. `.` or `src`)
   - Features:
     - Shows files and directories with clear indicators (`[FILE]` or `[DIR]`)
-    - Provides safe directory traversal with proper error handling
-    - Validates paths and ensures they are absolute
     - Useful for exploring project structure and understanding codebase organization
 
 ### Claude Code Plugins
@@ -1141,8 +1153,7 @@ Foundation plugin that provides AI-powered codebase analysis through MCP server 
 
 **Features:**
 - Pack local and remote repositories
-- Search through packed outputs
-- Read files with built-in security scanning (Secretlint)
+- Read and search packed outputs
 - Automatic Tree-sitter compression (~70% token reduction)
 
 **2. repomix-commands** (Slash Commands Plugin)
@@ -1195,7 +1206,7 @@ The agent automatically:
 - **Seamless Integration**: Claude can directly analyze codebases without manual preparation
 - **Natural Language**: Use conversational commands instead of remembering CLI syntax
 - **Always Latest**: Automatically uses `npx repomix@latest` for up-to-date features
-- **Security Built-in**: Automatic Secretlint scanning prevents sensitive data exposure
+- **Secret Scanning**: Secretlint flags files matching known credential formats so they are left out of the output
 - **Token Optimization**: Tree-sitter compression for large codebases
 
 For more details, see the plugin documentation in the `.claude/plugins/` directory.
@@ -1742,6 +1753,37 @@ repomix --no-security-check
 > [!NOTE]
 > Disabling security checks may expose sensitive information. Use this option with caution and only when necessary, such
 > as when working with test files or documentation that contains example credentials.
+
+### Remote Repository Config Trust
+
+A `repomix.config.*` is code, not just data: a `.ts` / `.js` config is executed when loaded, `input.processors` runs
+external commands, and path options can read files outside the repository. Loading one from an unfamiliar repository is
+comparable to running its `Makefile`.
+
+For that reason, **a cloned repository's config is never loaded by default**. Your global config and CLI options still
+apply.
+
+When you opt in with `--remote-trust-config` (or `REPOMIX_REMOTE_TRUST_CONFIG=true`) on an interactive terminal, Repomix
+shows the config that is about to run and asks before loading it:
+
+- **Yes, once** — trust this run only.
+- **Yes, and don't ask again for this repository** — the decision is *content-pinned*: it records a hash of the config
+  you approved, so you are asked again if that repository later ships a different one (the `direnv allow` model).
+- **No** (the default selection) — abort without loading the config.
+
+The displayed config is written by the repository's author, so control, ANSI, and bidirectional characters are escaped,
+the output is capped, every config line is prefixed, and symlinked configs pointing outside the clone are refused — what
+you review is what runs.
+
+The prompt is skipped with `--force`, in non-interactive shells such as CI (existing automation keeps working), and once
+you have chosen to always trust that repository.
+
+> [!IMPORTANT]
+> The content pin covers the entry config file only. A `.ts` / `.js` config can `import` other files and
+> `input.processors` can invoke external scripts; neither is hashed. Treat "don't ask again" as trust in the repository,
+> not only in the file you read.
+
+See the [security guide](https://repomix.com/guide/security#remote-repository-config-trust) for the full trust model.
 
 ## 🤖 Using Repomix with GitHub Actions
 
