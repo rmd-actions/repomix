@@ -62,7 +62,7 @@ description: "Girdi, çıktı, dosya seçimi, uzak depolar, yapılandırma, güv
 |---------|----------|
 | `--remote <url>` | Uzak bir depoyu klonla ve paketle (GitHub URL'si veya `kullanıcı/depo` formatı) |
 | `--remote-branch <name>` | Kullanılacak belirli dal, etiket veya commit (varsayılan: deponun varsayılan dalı) |
-| `--remote-trust-config` | Uzak depolardan yapılandırma dosyalarına güven ve yükle (güvenlik için varsayılan olarak devre dışı) |
+| `--remote-trust-config` | Uzak depolardan yapılandırma dosyalarına güven ve yükle. Güvenilen bir yapılandırma komut çalıştırabilir ve yerel dosyaları okuyabilir, bu yüzden bu seçeneği yalnızca tamamen güvendiğiniz depolar için kullanın (güvenlik için varsayılan olarak devre dışı). Etkileşimli bir terminalde yapılandırma gösterilir ve onay istenir |
 
 ## Yapılandırma Seçenekleri
 
@@ -81,6 +81,7 @@ description: "Girdi, çıktı, dosya seçimi, uzak depolar, yapılandırma, güv
 
 ## MCP Seçenekleri
 - `--mcp`: AI araç entegrasyonu için Model Context Protocol sunucusu olarak çalıştır
+- `--sandbox [dir]`: (`--mcp` ile birlikte) MCP sunucusunun dosya araçlarını bir çalışma alanı dizinine sınırla (varsayılan olarak çalışma dizini; örn. `--sandbox path/to/project`). Her yol bu köke görelidir, mutlak/ana makine yolları reddedilir ve uzak paketleme, beceri oluşturma ile harici çıktıları ekleme devre dışı bırakılır. Bkz. [MCP Sunucusu](/tr/guide/mcp-server).
 
 ## Ajan Becerileri Oluşturma Seçenekleri
 
@@ -89,7 +90,7 @@ description: "Girdi, çıktı, dosya seçimi, uzak depolar, yapılandırma, güv
 | `--skill-generate [name]` | Claude Agent Skills formatında çıktıyı `.claude/skills/<name>/` dizinine oluştur (ad belirtilmezse otomatik oluşturulur) |
 | `--skill-project-name <name>` | Oluşturulan Skills açıklamalarında kullanılan proje adını geçersiz kıl |
 | `--skill-output <path>` | Beceri çıktı dizin yolunu doğrudan belirt (konum istemini atlar) |
-| `-f, --force` | Tüm onay istemlerini atla (örn. beceri dizini üzerine yazma) |
+| `-f, --force` | Tüm onay istemlerini atla (beceri dizini üzerine yazma, uzak yapılandırma güveni) |
 
 ## İzleme Modu Seçenekleri
 

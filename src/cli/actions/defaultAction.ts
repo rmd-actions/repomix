@@ -35,15 +35,28 @@ export interface DefaultActionRunnerResult {
  * default and watch actions so the config pipeline lives in one place.
  */
 export const buildMergedConfig = async (cwd: string, cliOptions: CliOptions): Promise<RepomixConfigMerged> => {
-  // A remote repository can opt out of its local config. Its legacy files must
-  // not then trigger an interactive migration or mutate the temporary clone.
-  if (!cliOptions.skipLocalConfig) {
+  // Migration rewrites legacy Repopack files in place, so it only makes sense for
+  // the user's own project. A remote clone is a throwaway temp dir whose legacy
+  // files are attacker-controlled: migrating them would write a repomix.config.*
+  // that the trust prompt never showed (or introduce one where the repo had none),
+  // turning consent for a rename into consent to run unreviewed config. Remote runs
+  // therefore opt out entirely, independently of whether the config is trusted.
+  // skipLocalConfig is kept in the condition as a backstop: any caller that opts out
+  // of reading a directory's config has no business rewriting files in it either.
+  if (!cliOptions.skipMigration && !cliOptions.skipLocalConfig) {
     await runMigrationAction(cwd);
   }
 
-  // Load the config file in main process
+  // Load the merged repomix.config.* — but callers that don't trust the config
+  // source suppress it: an untrusted remote repo passes skipLocalConfig (its own
+  // config is attacker-controlled), and the sandboxed MCP server passes BOTH, since
+  // any config it loaded (workspace or the operator's global one) could set
+  // output.instructionFilePath to read an out-of-workspace file into the
+  // agent-visible output, or input.processors to run commands. Both default off, so
+  // ordinary CLI/library runs load config as usual.
   const fileConfig: RepomixConfigFile = await loadFileConfig(cwd, cliOptions.config ?? null, {
     skipLocalConfig: cliOptions.skipLocalConfig,
+    skipGlobalConfig: cliOptions.skipGlobalConfig,
   });
   logger.trace('Loaded file config:', fileConfig);
 
@@ -140,7 +153,13 @@ export const runDefaultAction = async (
 
   try {
     const { skillName, skillDir, skillProjectName, skillSourceUrl } = cliOptions;
-    const packOptions = { skillName, skillDir, skillProjectName, skillSourceUrl };
+    const packOptions = {
+      skillName,
+      skillDir,
+      skillProjectName,
+      skillSourceUrl,
+      confineToBaseDir: cliOptions.confineToBaseDir,
+    };
 
     const targetPaths = stdinFilePaths ? [cwd] : directories.map((directory) => path.resolve(cwd, directory));
 
