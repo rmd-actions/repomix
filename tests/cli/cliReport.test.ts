@@ -1,12 +1,21 @@
 import path from 'node:path';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
-import { reportCompletion, reportSecurityCheck, reportSummary, reportTopFiles } from '../../src/cli/cliReport.js';
+import {
+  getDisplayPath,
+  reportCompletion,
+  reportResults,
+  reportSecurityCheck,
+  reportSummary,
+  reportTopFiles,
+} from '../../src/cli/cliReport.js';
+import { reportTokenCountTree } from '../../src/cli/reporters/tokenCountTreeReporter.js';
 import type { SuspiciousFileResult } from '../../src/core/security/securityCheck.js';
 import type { PackResult } from '../../src/index.js';
 import { logger } from '../../src/shared/logger.js';
 import { createMockConfig } from '../testing/testUtils.js';
 
 vi.mock('../../src/shared/logger');
+vi.mock('../../src/cli/reporters/tokenCountTreeReporter.js');
 vi.mock('picocolors', () => ({
   default: {
     dim: (str: string) => `DIM:${str}`,
@@ -21,6 +30,15 @@ vi.mock('picocolors', () => ({
 describe('cliReport', () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  describe('getDisplayPath', () => {
+    test('should keep paths in a sibling directory with the same prefix absolute', () => {
+      const cwd = path.join(path.parse(process.cwd()).root, 'workspace', 'app');
+      const siblingPath = path.join(path.dirname(cwd), 'application', 'output.xml');
+
+      expect(getDisplayPath(siblingPath, cwd)).toBe(siblingPath);
+    });
   });
 
   describe('reportSummary', () => {
@@ -399,5 +417,39 @@ describe('cliReport', () => {
       expect(logger.log).toHaveBeenCalledWith('GREEN:🎉 All Done!');
       expect(logger.log).toHaveBeenCalledWith('Your repository has been successfully packed.');
     });
+  });
+});
+
+describe('reportResults token count tree', () => {
+  const packResult: PackResult = {
+    totalFiles: 1,
+    totalCharacters: 10,
+    totalTokens: 3,
+    fileCharCounts: { 'file.txt': 10 },
+    fileTokenCounts: { 'file.txt': 3 },
+    suspiciousFilesResults: [],
+    suspiciousGitDiffResults: [],
+    suspiciousGitLogResults: [],
+    processedFiles: [],
+    safeFilePaths: ['file.txt'],
+    gitDiffTokenCount: 0,
+    gitLogTokenCount: 0,
+    skippedFiles: [],
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  test('should show the tree for a zero threshold', () => {
+    reportResults('/test/project', packResult, createMockConfig({ output: { tokenCountTree: 0 } }));
+
+    expect(reportTokenCountTree).toHaveBeenCalledOnce();
+  });
+
+  test('should not show the tree when it is disabled', () => {
+    reportResults('/test/project', packResult, createMockConfig({ output: { tokenCountTree: false } }));
+
+    expect(reportTokenCountTree).not.toHaveBeenCalled();
   });
 });
