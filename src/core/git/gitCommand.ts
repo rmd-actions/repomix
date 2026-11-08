@@ -2,11 +2,38 @@ import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
-import { RepomixError } from '../../shared/errorHandle.js';
+import { getErrorMessage, RepomixError } from '../../shared/errorHandle.js';
 import { logger } from '../../shared/logger.js';
 import { redactErrorMessage, redactUrl } from '../../shared/urlRedact.js';
 
 const execFileAsync = promisify(execFile);
+
+// A repository's own .git/config can name executables that git will run while
+// merely reading history: gpg.program (reached through log.showSignature),
+// diff.external, per-attribute textconv drivers, and core.fsmonitor. repomix
+// runs these read-only git commands inside directories it did not create: a
+// local pack of an untrusted checkout, or any working directory — so a malicious
+// repository could otherwise turn `git log`/`git diff` into command execution on
+// this host. Every such invocation is neutralized: the command flags disable the
+// log/diff drivers and core.fsmonitor (which has no flag) is overridden to empty.
+// Verified against git 2.53 to block all four vectors while leaving output for a
+// legitimate repository byte-for-byte unchanged.
+//
+// GIT_UNTRUSTED_CONFIG_ARGS goes before the subcommand and so applies to any git
+// command run in the target directory (log, diff, and the rev-parse repository
+// probe). The log args carry the diff-driver flags too: today `git log` only
+// asks for --name-only, but including them keeps the driver keys disabled even if
+// a later change adds patch output, so the guarantee does not depend on the exact
+// log arguments. Both are verified to leave legitimate output unchanged.
+const GIT_UNTRUSTED_CONFIG_ARGS = ['-c', 'core.fsmonitor='];
+// git C-quotes bytes outside ASCII by default (core.quotePath=true), so a UTF-8
+// filename comes back as "\346\227\245...". Repomix prints those paths in the
+// git-logs and git-diffs sections and uses them as the keys for
+// output.git.sortByChanges, while every other section uses the raw name, so ask
+// git for the raw form.
+const GIT_RAW_PATH_ARGS = ['-c', 'core.quotePath=false'];
+const GIT_LOG_HARDENING_ARGS = ['--no-show-signature', '--no-ext-diff', '--no-textconv'];
+const GIT_DIFF_HARDENING_ARGS = ['--no-ext-diff', '--no-textconv'];
 
 const GIT_REMOTE_TIMEOUT = 30000;
 const gitRemoteEnv = { ...process.env, GIT_TERMINAL_PROMPT: '0' };
@@ -29,7 +56,10 @@ export const execGitLogFilenames = async (
     const result = await deps.execFileAsync('git', [
       '-C',
       directory,
+      ...GIT_UNTRUSTED_CONFIG_ARGS,
+      ...GIT_RAW_PATH_ARGS,
       'log',
+      ...GIT_LOG_HARDENING_ARGS,
       '--pretty=format:',
       '--name-only',
       '-n',
@@ -38,7 +68,7 @@ export const execGitLogFilenames = async (
 
     return result.stdout.split('\n').filter(Boolean);
   } catch (error) {
-    logger.trace('Failed to get git log filenames:', (error as Error).message);
+    logger.trace('Failed to get git log filenames:', getErrorMessage(error));
     return [];
   }
 };
@@ -54,14 +84,20 @@ export const execGitDiff = async (
     const result = await deps.execFileAsync('git', [
       '-C',
       directory,
+      ...GIT_UNTRUSTED_CONFIG_ARGS,
+      ...GIT_RAW_PATH_ARGS,
       'diff',
       '--no-color', // Avoid ANSI color codes
       ...options,
+      // Hardening flags come last so a caller's option can never re-enable an
+      // external diff or textconv driver (for conflicting flags git honors the
+      // final one).
+      ...GIT_DIFF_HARDENING_ARGS,
     ]);
 
     return result.stdout || '';
   } catch (error) {
-    logger.trace('Failed to execute git diff:', (error as Error).message);
+    logger.trace('Failed to execute git diff:', getErrorMessage(error));
     throw error;
   }
 };
@@ -75,7 +111,7 @@ export const execGitVersion = async (
     const result = await deps.execFileAsync('git', ['--version']);
     return result.stdout || '';
   } catch (error) {
-    logger.trace('Failed to execute git version:', (error as Error).message);
+    logger.trace('Failed to execute git version:', getErrorMessage(error));
     throw error;
   }
 };
@@ -87,10 +123,16 @@ export const execGitRevParse = async (
   },
 ): Promise<string> => {
   try {
-    const result = await deps.execFileAsync('git', ['-C', directory, 'rev-parse', '--is-inside-work-tree']);
+    const result = await deps.execFileAsync('git', [
+      '-C',
+      directory,
+      ...GIT_UNTRUSTED_CONFIG_ARGS,
+      'rev-parse',
+      '--is-inside-work-tree',
+    ]);
     return result.stdout || '';
   } catch (error) {
-    logger.trace('Failed to execute git rev-parse:', (error as Error).message);
+    logger.trace('Failed to execute git rev-parse:', getErrorMessage(error));
     throw error;
   }
 };
@@ -140,8 +182,11 @@ export const execGitShallowClone = async (
   deps = {
     execFileAsync,
   },
+  signal?: AbortSignal,
 ) => {
   validateGitUrl(url);
+  // Only the network operations take the signal: they are the slow, cancellable part.
+  const remoteOpts = signal ? { ...gitRemoteOpts, signal } : gitRemoteOpts;
 
   if (remoteBranch) {
     validateGitRef(remoteBranch);
@@ -153,7 +198,7 @@ export const execGitShallowClone = async (
       await deps.execFileAsync(
         'git',
         ['-C', directory, 'fetch', '--depth', '1', 'origin', '--end-of-options', remoteBranch],
-        gitRemoteOpts,
+        remoteOpts,
       );
       await deps.execFileAsync('git', ['-C', directory, 'checkout', 'FETCH_HEAD']);
     } catch (err: unknown) {
@@ -178,11 +223,11 @@ export const execGitShallowClone = async (
 
       // Maybe the error is due to a short SHA, let's try again
       // Can't use --depth 1 here as we need to fetch the specific commit
-      await deps.execFileAsync('git', ['-C', directory, 'fetch', 'origin'], gitRemoteOpts);
+      await deps.execFileAsync('git', ['-C', directory, 'fetch', 'origin'], remoteOpts);
       await deps.execFileAsync('git', ['-C', directory, 'checkout', '--end-of-options', remoteBranch]);
     }
   } else {
-    await deps.execFileAsync('git', ['clone', '--depth', '1', '--', url, directory], gitRemoteOpts);
+    await deps.execFileAsync('git', ['clone', '--depth', '1', '--', url, directory], remoteOpts);
   }
 
   // Drop the clone's .git. This keeps git internals out of the packed output, but
@@ -207,7 +252,10 @@ export const execGitLog = async (
     const result = await deps.execFileAsync('git', [
       '-C',
       directory,
+      ...GIT_UNTRUSTED_CONFIG_ARGS,
+      ...GIT_RAW_PATH_ARGS,
       'log',
+      ...GIT_LOG_HARDENING_ARGS,
       `--pretty=format:${gitSeparator}%ad|%s`,
       '--date=iso',
       '--name-only',
@@ -217,7 +265,7 @@ export const execGitLog = async (
 
     return result.stdout || '';
   } catch (error) {
-    logger.trace('Failed to execute git log:', (error as Error).message);
+    logger.trace('Failed to execute git log:', getErrorMessage(error));
     throw error;
   }
 };

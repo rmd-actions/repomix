@@ -7,6 +7,7 @@ import {
   isPromptRenderable,
 } from '../../../src/cli/prompts/remoteConfigTrustPrompt.js';
 import { OperationCancelledError, RepomixError } from '../../../src/shared/errorHandle.js';
+import { mockOverloaded } from '../../testing/depsDoubles.js';
 
 const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 
@@ -18,7 +19,6 @@ describe('remoteConfigTrustPrompt', () => {
   let stderrSpy: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    vi.restoreAllMocks();
     // Silence the trust prompt's stderr output so test logs stay clean, while still
     // allowing assertions on what the user was told.
     stderrSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
@@ -82,11 +82,18 @@ describe('remoteConfigTrustPrompt', () => {
       hasExplicitConfig: false,
     };
 
+    // realpath is overloaded, so the double comes from mockOverloaded and resolves paths via `resolve`.
+    const fakeRealpath = (resolve: (target: string) => string) => {
+      const realpath = mockOverloaded<ConfirmRemoteConfigTrustDeps['realpath']>();
+      realpath.mockImplementation(async (target) => resolve(String(target)));
+      return realpath;
+    };
+
     const makeDeps = (over: Partial<ConfirmRemoteConfigTrustDeps> = {}): ConfirmRemoteConfigTrustDeps => ({
       findLocalConfigPath: vi.fn().mockResolvedValue('/repo/repomix.config.json'),
       readFile: mockReadFile('{"output":{"style":"xml"}}'),
       lstat: vi.fn().mockResolvedValue({ isSymbolicLink: () => false, isFile: () => true }),
-      realpath: vi.fn(async (target: unknown) => String(target)) as unknown as ConfirmRemoteConfigTrustDeps['realpath'],
+      realpath: fakeRealpath((target) => target),
       isRemoteConfigTrusted: vi.fn().mockResolvedValue(false),
       markRemoteConfigTrusted: vi.fn().mockResolvedValue(undefined),
       isInteractive: vi.fn().mockReturnValue(true),
@@ -143,9 +150,7 @@ describe('remoteConfigTrustPrompt', () => {
     it('rejects a config resolving outside the clone in a non-interactive shell', async () => {
       const deps = makeDeps({
         isInteractive: vi.fn().mockReturnValue(false),
-        realpath: vi.fn(async (target: unknown) =>
-          String(target).endsWith('.json') ? '/elsewhere/repomix.config.json' : String(target),
-        ) as unknown as ConfirmRemoteConfigTrustDeps['realpath'],
+        realpath: fakeRealpath((target) => (target.endsWith('.json') ? '/elsewhere/repomix.config.json' : target)),
       });
       await expect(confirmRemoteConfigTrust(baseOptions, deps)).rejects.toThrow(RepomixError);
     });
@@ -345,11 +350,29 @@ describe('remoteConfigTrustPrompt', () => {
 
     it('refuses a config whose real path escapes the cloned repo', async () => {
       const deps = makeDeps({
-        realpath: vi.fn(async (target: unknown) =>
-          String(target) === '/repo' ? '/repo' : '/etc/shadow',
-        ) as unknown as ConfirmRemoteConfigTrustDeps['realpath'],
+        realpath: fakeRealpath((target) => (target === '/repo' ? '/repo' : '/etc/shadow')),
       });
       await expect(confirmRemoteConfigTrust(baseOptions, deps)).rejects.toThrow(RepomixError);
+      expect(deps.readFile).not.toHaveBeenCalled();
+    });
+
+    it('accepts a config inside a clone directory whose name starts with ".."', async () => {
+      // `..foo` is a child of the clone, not a parent traversal, so it must not be refused
+      // as resolving outside the repository.
+      const deps = makeDeps({
+        realpath: fakeRealpath((target) => (target === '/repo' ? '/repo' : '/repo/..foo/repomix.config.json')),
+      });
+      await expect(confirmRemoteConfigTrust(baseOptions, deps)).resolves.toBeUndefined();
+      expect(deps.readFile).toHaveBeenCalled();
+    });
+
+    it('refuses a config resolving to a sibling directory of the clone', async () => {
+      const deps = makeDeps({
+        realpath: fakeRealpath((target) => (target === '/repo' ? '/repo' : '/repo-evil/repomix.config.json')),
+      });
+      await expect(confirmRemoteConfigTrust({ ...baseOptions, force: true }, deps)).rejects.toThrow(
+        /resolves outside the cloned repository/,
+      );
       expect(deps.readFile).not.toHaveBeenCalled();
     });
 

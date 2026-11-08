@@ -2,11 +2,13 @@ import path from 'node:path';
 import pc from 'picocolors';
 import type { RepomixConfigMerged } from '../../config/configSchema.js';
 import { RepomixError } from '../../shared/errorHandle.js';
+import { toPosixPath } from '../../shared/pathUtils.js';
 import type { RepomixProgressCallback } from '../../shared/types.js';
 import type { FilesByRoot } from '../file/fileTreeGenerate.js';
 import type { ProcessedFile } from '../file/fileTypes.js';
 import type { GitDiffResult } from '../git/gitDiffHandle.js';
 import type { GitLogResult } from '../git/gitLogHandle.js';
+import { joinDisplayPath } from '../packager/rootDisplayPath.js';
 import type { generateOutput } from './outputGenerate.js';
 
 export interface OutputSplitGroup {
@@ -26,7 +28,7 @@ export interface OutputSplitPart {
 export type GenerateOutputFn = typeof generateOutput;
 
 export const getRootEntry = (relativeFilePath: string): string => {
-  const normalized = relativeFilePath.replaceAll(path.win32.sep, path.posix.sep);
+  const normalized = toPosixPath(relativeFilePath);
   const [first] = normalized.split('/');
   return first || normalized;
 };
@@ -34,7 +36,7 @@ export const getRootEntry = (relativeFilePath: string): string => {
 // Returns the first `depth` path segments joined with '/'. Used to key a group at a
 // deeper directory level than its current one when a single group is too large to fit.
 const getPathPrefix = (relativeFilePath: string, depth: number): string => {
-  const normalized = relativeFilePath.replaceAll(path.win32.sep, path.posix.sep);
+  const normalized = toPosixPath(relativeFilePath);
   return normalized.split('/').slice(0, depth).join('/');
 };
 
@@ -151,6 +153,11 @@ const renderGroups = async (
   const chunkProcessedFiles = groupsToRender.flatMap((g) => g.processedFiles);
   const chunkAllFilePaths = groupsToRender.flatMap((g) => g.allFilePaths);
   const chunkConfig = makeChunkConfig(baseConfig, partIndex);
+  const chunkFilePathSet = new Set(chunkAllFilePaths);
+  const chunkFilePathsByRoot = filePathsByRoot?.map(({ rootLabel, files }) => ({
+    rootLabel,
+    files: files.filter((file) => chunkFilePathSet.has(rootDirs.length > 1 ? joinDisplayPath(rootLabel, file) : file)),
+  }));
 
   return await generateOutput(
     rootDirs,
@@ -159,7 +166,7 @@ const renderGroups = async (
     chunkAllFilePaths,
     partIndex === 1 ? gitDiffResult : undefined,
     partIndex === 1 ? gitLogResult : undefined,
-    filePathsByRoot,
+    chunkFilePathsByRoot,
     emptyDirPaths,
   );
 };

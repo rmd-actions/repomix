@@ -1,6 +1,8 @@
 import { inspect } from 'node:util';
+import pc from 'picocolors';
 import { REPOMIX_DISCORD_URL, REPOMIX_ISSUES_URL } from './constants.js';
 import { logger, repomixLogLevels } from './logger.js';
+import { writeStderrLine } from './stderrWrite.js';
 
 export class RepomixError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -23,6 +25,36 @@ export class OperationCancelledError extends RepomixError {
   }
 }
 
+/**
+ * Message of a caught value: an Error's `message`, otherwise the value stringified.
+ * Safer than `(error as Error).message`, which yields undefined for a non-Error
+ * throwable and throws for a thrown null or undefined. Never throws itself: a value
+ * that cannot be stringified (e.g. a null-prototype object) gets a fixed message.
+ */
+export const getErrorMessage = (error: unknown): string => {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  try {
+    return String(error);
+  } catch {
+    return 'Unknown error (value could not be converted to a string)';
+  }
+};
+
+// `--quiet` and `--stdout` both set the level to SILENT, which would otherwise let a fatal
+// failure exit non-zero without printing anything. Both flags are documented as keeping
+// errors ("Suppress all console output except errors"), so at that one level the message
+// goes straight to stderr instead of being swallowed with everything else.
+const logFatalError = (message: string): void => {
+  if (logger.getLogLevel() === repomixLogLevels.SILENT) {
+    writeStderrLine(pc.red(message));
+    return;
+  }
+
+  logger.error(message);
+};
+
 export const handleError = (error: unknown): void => {
   // A cancellation is an answer, not a failure. The prompt that raised it has
   // already told the user what was cancelled, so the error banner, the --verbose
@@ -34,7 +66,7 @@ export const handleError = (error: unknown): void => {
   logger.log('');
 
   if (isRepomixError(error)) {
-    logger.error(`✖ ${error.message}`);
+    logFatalError(`✖ ${error.message}`);
     if (logger.getLogLevel() < repomixLogLevels.DEBUG) {
       logger.log('');
       logger.note('For detailed debug information, use the --verbose flag');
@@ -46,7 +78,7 @@ export const handleError = (error: unknown): void => {
       logger.debug('Caused by:', error.cause);
     }
   } else if (isError(error)) {
-    logger.error(`✖ Unexpected error: ${error.message}`);
+    logFatalError(`✖ Unexpected error: ${error.message}`);
     // If unexpected error, show stack trace by default
     logger.note('Stack trace:', error.stack);
 
@@ -56,7 +88,7 @@ export const handleError = (error: unknown): void => {
     }
   } else {
     // Unknown errors
-    logger.error('✖ An unknown error occurred');
+    logFatalError('✖ An unknown error occurred');
     // Safely serialize unknown error objects
     try {
       logger.note(

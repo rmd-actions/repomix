@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { generateOutput } from '../../../src/core/output/outputGenerate.js';
 import {
   buildOutputSplitGroups,
   buildSplitOutputFilePath,
@@ -6,6 +7,7 @@ import {
   getRootEntry,
   subdivideSplitGroup,
 } from '../../../src/core/output/outputSplit.js';
+import { createMockConfig as createMergedConfig } from '../../testing/testUtils.js';
 
 describe('outputSplit', () => {
   describe('getRootEntry', () => {
@@ -114,6 +116,84 @@ describe('outputSplit', () => {
 
     const createMockDeps = (outputSize: number) => ({
       generateOutput: async () => 'x'.repeat(outputSize),
+    });
+
+    const getDirectoryTree = (content: string): string => {
+      const match = content.match(/Directory Structure\n=+\n([\s\S]*?)\n\n=+\nFiles/);
+      expect(match).not.toBeNull();
+      return match?.[1].trim() ?? '';
+    };
+
+    it('scopes each part directory tree to the files in that part', async () => {
+      const processedFiles = ['a/file.txt', 'b/file.txt', 'c/file.txt'].map((filePath, index) => ({
+        path: filePath,
+        content: String.fromCharCode(65 + index).repeat(2000),
+      }));
+      const allFilePaths = processedFiles.map((file) => file.path);
+      const baseConfig = createMergedConfig({
+        output: {
+          filePath: 'repomix-output.txt',
+          style: 'plain',
+          git: { sortByChanges: false, includeDiffs: false, includeLogs: false },
+        },
+      });
+
+      const result = await generateSplitOutputParts({
+        rootDirs: ['/repo'],
+        baseConfig,
+        processedFiles,
+        allFilePaths,
+        maxBytesPerPart: 5000,
+        gitDiffResult: undefined,
+        gitLogResult: undefined,
+        progressCallback: () => {},
+        filePathsByRoot: [{ rootLabel: 'repo', files: allFilePaths }],
+        deps: { generateOutput },
+      });
+
+      expect(result).toHaveLength(3);
+      expect(result.map((part) => getDirectoryTree(part.content))).toEqual([
+        'a/\n  file.txt',
+        'b/\n  file.txt',
+        'c/\n  file.txt',
+      ]);
+    });
+
+    it('preserves multi-root labels while scoping split directory trees', async () => {
+      const processedFiles = ['root-a/file.txt', 'root-b/file.txt'].map((filePath, index) => ({
+        path: filePath,
+        content: String.fromCharCode(65 + index).repeat(2000),
+      }));
+      const allFilePaths = processedFiles.map((file) => file.path);
+      const baseConfig = createMergedConfig({
+        output: {
+          filePath: 'repomix-output.txt',
+          style: 'plain',
+          git: { sortByChanges: false, includeDiffs: false, includeLogs: false },
+        },
+      });
+
+      const result = await generateSplitOutputParts({
+        rootDirs: ['/root-a', '/root-b'],
+        baseConfig,
+        processedFiles,
+        allFilePaths,
+        maxBytesPerPart: 5000,
+        gitDiffResult: undefined,
+        gitLogResult: undefined,
+        progressCallback: () => {},
+        filePathsByRoot: [
+          { rootLabel: 'root-a', files: ['file.txt'] },
+          { rootLabel: 'root-b', files: ['file.txt'] },
+        ],
+        deps: { generateOutput },
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result.map((part) => getDirectoryTree(part.content))).toEqual([
+        '[root-a]/\n  file.txt',
+        '[root-b]/\n  file.txt',
+      ]);
     });
 
     it('throws error when a single indivisible file exceeds maxBytesPerPart', async () => {
@@ -253,17 +333,21 @@ describe('outputSplit', () => {
         deps: { generateOutput: mockGenerateOutput as ReturnType<typeof createMockDeps>['generateOutput'] },
       });
 
-      // Should create multiple parts
-      expect(result.length).toBeGreaterThan(1);
-
-      // Each part should have correct structure
-      for (const part of result) {
-        expect(part.index).toBeGreaterThan(0);
-        expect(part.filePath).toContain(`.${part.index}.`);
-        expect(part.content).toBeTruthy();
-        expect(part.byteLength).toBeGreaterThan(0);
-        expect(part.groups.length).toBeGreaterThan(0);
-      }
+      // Root entries are sorted (docs, src, tests); each pair would exceed 120 bytes, so each lands in its own part.
+      // Sizes follow the mock: 30 + 40 * fileCount.
+      expect(
+        result.map((part) => ({
+          index: part.index,
+          filePath: part.filePath,
+          content: part.content,
+          byteLength: part.byteLength,
+          rootEntries: part.groups.map((g) => g.rootEntry),
+        })),
+      ).toEqual([
+        { index: 1, filePath: 'repomix-output.1.xml', content: 'x'.repeat(70), byteLength: 70, rootEntries: ['docs'] },
+        { index: 2, filePath: 'repomix-output.2.xml', content: 'x'.repeat(110), byteLength: 110, rootEntries: ['src'] },
+        { index: 3, filePath: 'repomix-output.3.xml', content: 'x'.repeat(70), byteLength: 70, rootEntries: ['tests'] },
+      ]);
 
       // All groups should be distributed across parts (no duplicates)
       const allGroupRootEntries = result.flatMap((p) => p.groups.map((g) => g.rootEntry));
@@ -336,8 +420,8 @@ describe('outputSplit', () => {
       const callsWithGitData = callArgs.filter((c) => c.gitDiffResult !== undefined);
       const callsWithoutGitData = callArgs.filter((c) => c.gitDiffResult === undefined);
 
-      // At least one call should have git data (part 1)
-      expect(callsWithGitData.length).toBeGreaterThan(0);
+      // Part 1 is rendered twice (src alone, then src + tests, which overflows), both with git data
+      expect(callsWithGitData).toHaveLength(2);
 
       // All calls with git data should have the correct values
       for (const call of callsWithGitData) {
@@ -345,8 +429,8 @@ describe('outputSplit', () => {
         expect(call.gitLogResult).toEqual(gitLogResult);
       }
 
-      // Calls without git data should exist (part 2+)
-      expect(callsWithoutGitData.length).toBeGreaterThan(0);
+      // Part 2 (tests) is rendered once without git data
+      expect(callsWithoutGitData).toHaveLength(1);
     });
   });
 });

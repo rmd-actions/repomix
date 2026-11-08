@@ -1,6 +1,5 @@
 import fs from 'node:fs/promises';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
 import { createSecretLintConfig, runSecretLint } from '../../core/security/workers/securityCheckWorker.js';
 import { logger } from '../../shared/logger.js';
@@ -84,6 +83,14 @@ interface SearchResult {
 export const registerGrepRepomixOutputTool = (
   mcpServer: McpServer,
   config: McpServerConfig = { sandboxed: false, root: process.cwd() },
+  deps = {
+    access: fs.access,
+    readFile: fs.readFile,
+    getOutputFilePath,
+    requiresSecretScan,
+    createSecretLintConfig,
+    runSecretLint,
+  },
 ) => {
   mcpServer.registerTool(
     'grep_repomix_output',
@@ -111,7 +118,7 @@ export const registerGrepRepomixOutputTool = (
       try {
         logger.trace(`Searching Repomix output with ID: ${outputId}, pattern: ${pattern}`);
 
-        const filePath = getOutputFilePath(outputId);
+        const filePath = deps.getOutputFilePath(outputId);
         if (!filePath) {
           return buildMcpToolErrorResponse({
             errorMessage: `Error: Output file with ID ${outputId} not found. The output file may have been deleted or the ID is invalid.`,
@@ -123,7 +130,7 @@ export const registerGrepRepomixOutputTool = (
         }
 
         try {
-          await fs.access(filePath);
+          await deps.access(filePath);
         } catch {
           return buildMcpToolErrorResponse({
             errorMessage: config.sandboxed
@@ -136,13 +143,18 @@ export const registerGrepRepomixOutputTool = (
           });
         }
 
-        const content = await fs.readFile(filePath, 'utf8');
+        const content = await deps.readFile(filePath, 'utf8');
 
         // For files attached from an untrusted path, scan for secrets before serving
         // any content. This flags recognized secret formats; it is a heuristic, not a
         // guarantee that nothing sensitive is returned.
-        if (requiresSecretScan(outputId)) {
-          const securityCheckResult = await runSecretLint(filePath, content, 'file', createSecretLintConfig());
+        if (deps.requiresSecretScan(outputId)) {
+          const securityCheckResult = await deps.runSecretLint(
+            filePath,
+            content,
+            'file',
+            deps.createSecretLintConfig(),
+          );
           if (securityCheckResult !== null) {
             return buildMcpToolErrorResponse({
               errorMessage: config.sandboxed
@@ -288,24 +300,31 @@ export const formatSearchResults = (
 
   const resultLines: string[] = [];
   const addedLines = new Set<number>();
+  const matchedLineNumbers = new Set(matches.map((match) => match.lineNumber));
+
+  // `--` means "lines are missing here", so the gap has to be measured against the block emitted
+  // just before, not against the first line of the whole output.
+  let lastBlockEnd = -1;
 
   for (const match of matches) {
     const start = Math.max(0, match.lineNumber - 1 - beforeLines);
     const end = Math.min(lines.length - 1, match.lineNumber - 1 + afterLines);
 
-    // Add separator if there's a gap between previous and current context
-    if (resultLines.length > 0 && start > Math.min(...addedLines) + 1) {
+    if (resultLines.length > 0 && start > lastBlockEnd + 1) {
       resultLines.push('--');
     }
 
     for (let i = start; i <= end; i++) {
       if (!addedLines.has(i)) {
         const lineNum = i + 1;
-        const prefix = i === match.lineNumber - 1 ? `${lineNum}:` : `${lineNum}-`;
+        // A match keeps its `:` prefix even when an earlier match's context emitted the line first.
+        const prefix = matchedLineNumbers.has(lineNum) ? `${lineNum}:` : `${lineNum}-`;
         resultLines.push(`${prefix}${lines[i]}`);
         addedLines.add(i);
       }
     }
+
+    lastBlockEnd = Math.max(lastBlockEnd, end);
   }
 
   return resultLines;

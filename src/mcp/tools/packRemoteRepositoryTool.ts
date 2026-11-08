@@ -1,17 +1,18 @@
 import path from 'node:path';
-import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import { z } from 'zod';
-import { runCli } from '../../cli/cliRun.js';
 import type { CliOptions } from '../../cli/types.js';
 import { defaultFilePathMap } from '../../config/configSchema.js';
 import { redactUrl } from '../../shared/urlRedact.js';
+import { withMcpProgress } from './mcpProgress.js';
 import {
   buildMcpToolErrorResponse,
   convertErrorToJson,
   createToolWorkspace,
   formatPackToolResponse,
   outputPatternsSchema,
+  removeToolWorkspace,
+  runCliPreservingLogLevel,
 } from './mcpToolRuntime.js';
 
 const packRemoteRepositoryInputSchema = z.object({
@@ -64,7 +65,15 @@ const packRemoteRepositoryOutputSchema = z.object({
   totalTokens: z.number().describe('Total token count of the content'),
 });
 
-export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
+export const registerPackRemoteRepositoryTool = (
+  mcpServer: McpServer,
+  deps = {
+    createToolWorkspace,
+    formatPackToolResponse,
+    removeToolWorkspace,
+    runCliPreservingLogLevel,
+  },
+) => {
   mcpServer.registerTool(
     'pack_remote_repository',
     {
@@ -80,23 +89,20 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
         openWorldHint: true,
       },
     },
-    async ({
-      remote,
-      compress,
-      includePatterns,
-      ignorePatterns,
-      outputPatterns,
-      topFilesLength,
-      style,
-    }): Promise<CallToolResult> => {
+    async (
+      { remote, compress, includePatterns, ignorePatterns, outputPatterns, topFilesLength, style },
+      ctx,
+    ): Promise<CallToolResult> => {
       let tempDir = '';
+      // Fires on notifications/cancelled for this request or when the transport closes.
+      const signal = ctx?.mcpReq.signal;
 
       try {
-        tempDir = await createToolWorkspace();
-        const outputFileName = defaultFilePathMap[style as keyof typeof defaultFilePathMap];
+        tempDir = await deps.createToolWorkspace();
+        const outputFileName = defaultFilePathMap[style];
         const outputFilePath = path.join(tempDir, outputFileName);
 
-        const cliOptions = {
+        const cliOptions: CliOptions = {
           remote,
           compress,
           include: includePatterns,
@@ -107,9 +113,12 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
           securityCheck: true,
           topFilesLen: topFilesLength,
           quiet: true,
-        } as CliOptions;
+          signal,
+        };
 
-        const result = await runCli(['.'], process.cwd(), cliOptions);
+        const result = await withMcpProgress(ctx, { sandboxed: false }, (progressCallback) =>
+          deps.runCliPreservingLogLevel(['.'], process.cwd(), cliOptions, progressCallback),
+        );
         if (!result) {
           return buildMcpToolErrorResponse({
             errorMessage: 'Failed to return a result',
@@ -122,7 +131,7 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
         // The echoed repository is descriptive metadata only, so it is redacted:
         // a credentialed remote would otherwise persist in the MCP transcript,
         // the client's logs, and the model's context.
-        return await formatPackToolResponse(
+        return await deps.formatPackToolResponse(
           { repository: redactUrl(remote) },
           packResult,
           outputFilePath,
@@ -130,6 +139,10 @@ export const registerPackRemoteRepositoryTool = (mcpServer: McpServer) => {
         );
       } catch (error) {
         return buildMcpToolErrorResponse(convertErrorToJson(error));
+      } finally {
+        // The SDK never delivers a cancelled request's response, so nothing will read
+        // this workspace's output.
+        if (signal?.aborted && tempDir) await deps.removeToolWorkspace(tempDir);
       }
     },
   );

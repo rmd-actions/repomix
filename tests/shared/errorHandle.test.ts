@@ -1,6 +1,7 @@
 import * as v from 'valibot';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  getErrorMessage,
   handleError,
   OperationCancelledError,
   RepomixConfigValidationError,
@@ -8,6 +9,24 @@ import {
   rethrowValidationErrorIfSchemaError,
 } from '../../src/shared/errorHandle.js';
 import { logger, repomixLogLevels } from '../../src/shared/logger.js';
+
+describe('getErrorMessage', () => {
+  it('returns the message of an Error, including subclasses', () => {
+    expect(getErrorMessage(new Error('boom'))).toBe('boom');
+    expect(getErrorMessage(new RepomixError('repomix boom'))).toBe('repomix boom');
+  });
+
+  it('stringifies non-Error throwables', () => {
+    expect(getErrorMessage('plain string')).toBe('plain string');
+    expect(getErrorMessage(42)).toBe('42');
+    expect(getErrorMessage(undefined)).toBe('undefined');
+    expect(getErrorMessage(null)).toBe('null');
+  });
+
+  it('does not throw for a value that cannot be stringified', () => {
+    expect(getErrorMessage(Object.create(null))).toBe('Unknown error (value could not be converted to a string)');
+  });
+});
 
 describe('rethrowValidationErrorIfSchemaError', () => {
   it('rethrows ValiError as RepomixConfigValidationError with formatted message', () => {
@@ -150,7 +169,6 @@ describe('handleError', () => {
   });
 
   afterEach(() => {
-    vi.restoreAllMocks();
     logger.setLogLevel(originalLevel);
   });
 
@@ -265,5 +283,36 @@ describe('handleError', () => {
     handleError(null);
 
     expect(errorSpy).toHaveBeenCalledWith('✖ An unknown error occurred');
+  });
+
+  it('writes the message to stderr at SILENT, which --quiet and --stdout set', () => {
+    // The documented contract of --quiet is "suppress all console output except errors",
+    // and --stdout shares the level, so a failing pack must still say why it exited 1.
+    logger.setLogLevel(repomixLogLevels.SILENT);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    handleError(new RepomixError('config invalid'));
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('✖ config invalid'));
+  });
+
+  it('keeps unexpected errors visible at SILENT', () => {
+    logger.setLogLevel(repomixLogLevels.SILENT);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    handleError(new Error('something broke'));
+
+    expect(stderrSpy).toHaveBeenCalledWith(expect.stringContaining('✖ Unexpected error: something broke'));
+  });
+
+  it('goes through the logger as soon as the level allows errors', () => {
+    logger.setLogLevel(repomixLogLevels.ERROR);
+    const stderrSpy = vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+
+    handleError(new RepomixError('config invalid'));
+
+    expect(errorSpy).toHaveBeenCalledWith('✖ config invalid');
+    expect(stderrSpy).not.toHaveBeenCalled();
   });
 });
