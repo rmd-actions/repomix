@@ -25,6 +25,7 @@
       "!**/browser/.wxt",
       "!**/browser/packages",
       "!.claude/worktrees",
+      "!**/tests/core/treeSitter/fixtures",
       "!**/*.svg"
     ]
   },
@@ -32,7 +33,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true
+      "preset": "recommended"
     }
   },
   "overrides": [
@@ -77,6 +78,16 @@
       "allowComments": true,
       "allowTrailingCommas": true
     },
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "markdown": {
+    "formatter": {
+      "enabled": false
+    }
+  },
+  "yaml": {
     "formatter": {
       "enabled": false
     }

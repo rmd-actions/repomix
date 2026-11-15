@@ -23,7 +23,7 @@ import type { RepomixConfigMerged } from '../../config/configSchema.js';
 import { logger } from '../../shared/logger.js';
 import type { SupportedLang } from './languageConfig.js';
 import { LanguageParser } from './languageParser.js';
-import type { ParseContext } from './parseStrategies/BaseParseStrategy.js';
+import { getNodeEndRow, type ParseContext } from './parseStrategies/BaseParseStrategy.js';
 
 interface CapturedChunk {
   content: string;
@@ -45,13 +45,16 @@ export const parseFile = async (
   fileContent: string,
   filePath: string,
   config: RepomixConfigMerged,
+  deps = {
+    createLanguageParser: (): LanguageParser => new LanguageParser(),
+  },
 ): Promise<string | undefined> => {
   // Split the file content into individual lines
   const lines = fileContent.split('\n');
 
   let tree: Tree | null | undefined;
   try {
-    const languageParser = await getLanguageParserSingleton();
+    const languageParser = await getLanguageParserSingleton(deps.createLanguageParser);
 
     const lang: SupportedLang | undefined = languageParser.guessTheLang(filePath);
     if (lang === undefined) {
@@ -92,10 +95,14 @@ export const parseFile = async (
     for (const capture of captures) {
       const capturedChunkContent = parseStrategy.parseCapture(capture, lines, processedChunks, context);
       if (capturedChunkContent !== null) {
+        const content = capturedChunkContent.trim();
+        const startRow = capture.node.startPosition.row;
         capturedChunks.push({
-          content: capturedChunkContent.trim(),
-          startRow: capture.node.startPosition.row,
-          endRow: capture.node.endPosition.row,
+          content,
+          startRow,
+          // A strategy may emit lines past the node (e.g. a Ruby =begin block the
+          // grammar ends early), so cover the emitted lines for adjacency merging
+          endRow: Math.max(getNodeEndRow(capture.node), startRow + countLines(content) - 1),
         });
       }
     }
@@ -126,13 +133,13 @@ export const parseFile = async (
   }
 };
 
-const getLanguageParserSingleton = async () => {
+const getLanguageParserSingleton = async (createLanguageParser: () => LanguageParser) => {
   if (!languageParserSingleton) {
     // Assign only after init() succeeds. Otherwise a failed init would leave an
     // uninitialized parser cached for the rest of the worker's lifetime, so
     // every subsequent file would throw "not initialized" and silently lose
     // compression. Keeping the singleton null lets the next call retry init.
-    const parser = new LanguageParser();
+    const parser = createLanguageParser();
     await parser.init();
     languageParserSingleton = parser;
   }
@@ -152,6 +159,14 @@ export const cleanupLanguageParser = async (): Promise<void> => {
       languageParserSingleton = null;
     }
   }
+};
+
+const countLines = (text: string): number => {
+  let count = 1;
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) {
+    count++;
+  }
+  return count;
 };
 
 const filterDuplicatedChunks = (chunks: CapturedChunk[]): CapturedChunk[] => {

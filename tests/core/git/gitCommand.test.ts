@@ -15,8 +15,8 @@ import {
   execLsRemoteHead,
 } from '../../../src/core/git/gitCommand.js';
 import { logger } from '../../../src/shared/logger.js';
-
-vi.mock('../../../src/shared/logger');
+import { silenceLogger } from '../../testing/loggerDoubles.js';
+import { createTempDir } from '../../testing/tempDir.js';
 
 const expectGitRemoteOpts = expect.objectContaining({
   timeout: 30000,
@@ -31,7 +31,7 @@ const expectGitProbeOpts = expect.objectContaining({
 
 describe('gitCommand', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    silenceLogger();
   });
 
   describe('execGitLogFilenames', () => {
@@ -50,12 +50,15 @@ file2.ts
       expect(result).toEqual(['file1.ts', 'file2.ts', 'file1.ts', 'file3.ts', 'file2.ts']);
       // core.fsmonitor=, --no-show-signature and the diff-driver flags neutralize
       // executable keys the target directory's own .git/config could set (see
-      // gitCommand.ts).
+      // gitCommand.ts). core.quotePath=false keeps UTF-8 filenames readable and
+      // matchable against the paths used everywhere else in the output.
       expect(mockFileExecAsync).toHaveBeenCalledWith('git', [
         '-C',
         '/test/dir',
         '-c',
         'core.fsmonitor=',
+        '-c',
+        'core.quotePath=false',
         'log',
         '--no-show-signature',
         '--no-ext-diff',
@@ -93,6 +96,8 @@ file2.ts
         '/test/dir',
         '-c',
         'core.fsmonitor=',
+        '-c',
+        'core.quotePath=false',
         'diff',
         '--no-color',
         '--no-ext-diff',
@@ -167,19 +172,15 @@ file2.ts
     // guarantee is about what is left on disk rather than which git args ran.
     test('removes the clone .git so a cloned repository cannot supply git config', async () => {
       const mockFileExecAsync = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
-      const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'repomix-clone-git-'));
+      const directory = await createTempDir('repomix-clone-git-');
       await fs.mkdir(path.join(directory, '.git'), { recursive: true });
       await fs.writeFile(path.join(directory, '.git', 'config'), '[log]\n\tshowSignature = true\n');
 
-      try {
-        await execGitShallowClone('https://github.com/user/repo.git', directory, undefined, {
-          execFileAsync: mockFileExecAsync,
-        });
+      await execGitShallowClone('https://github.com/user/repo.git', directory, undefined, {
+        execFileAsync: mockFileExecAsync,
+      });
 
-        await expect(fs.access(path.join(directory, '.git'))).rejects.toThrow();
-      } finally {
-        await fs.rm(directory, { recursive: true, force: true });
-      }
+      await expect(fs.access(path.join(directory, '.git'))).rejects.toThrow();
     });
 
     test('should execute without branch option if not specified by user', async () => {
@@ -194,6 +195,27 @@ file2.ts
         'git',
         ['clone', '--depth', '1', '--', url, directory],
         expectGitRemoteOpts,
+      );
+    });
+
+    test('passes the abort signal to the network operations', async () => {
+      const mockFileExecAsync = vi.fn().mockResolvedValue({ stdout: '', stderr: '' });
+      const url = 'https://github.com/user/repo.git';
+      const directory = '/tmp/repo';
+      const { signal } = new AbortController();
+
+      await execGitShallowClone(url, directory, undefined, { execFileAsync: mockFileExecAsync }, signal);
+      await execGitShallowClone(url, directory, 'main', { execFileAsync: mockFileExecAsync }, signal);
+
+      expect(mockFileExecAsync).toHaveBeenCalledWith(
+        'git',
+        ['clone', '--depth', '1', '--', url, directory],
+        expect.objectContaining({ timeout: 30000, signal }),
+      );
+      expect(mockFileExecAsync).toHaveBeenCalledWith(
+        'git',
+        ['-C', directory, 'fetch', '--depth', '1', 'origin', '--end-of-options', 'main'],
+        expect.objectContaining({ timeout: 30000, signal }),
       );
     });
 
@@ -391,6 +413,8 @@ test/feature.test.ts`;
         '/test/dir',
         '-c',
         'core.fsmonitor=',
+        '-c',
+        'core.quotePath=false',
         'log',
         '--no-show-signature',
         '--no-ext-diff',
@@ -417,6 +441,8 @@ file1.txt`;
         '/test/dir',
         '-c',
         'core.fsmonitor=',
+        '-c',
+        'core.quotePath=false',
         'log',
         '--no-show-signature',
         '--no-ext-diff',
@@ -452,6 +478,8 @@ file.txt`;
         '/test/dir',
         '-c',
         'core.fsmonitor=',
+        '-c',
+        'core.quotePath=false',
         'log',
         '--no-show-signature',
         '--no-ext-diff',
@@ -563,7 +591,7 @@ c3d4e5f6g7h8i9j0k1l2m3n4o5p6q7r8\trefs/tags/v1.0.0
 // git's config parser reads as escape sequences. The cross-platform guarantee
 // is covered by the exact-argument assertions above; this block proves the
 // on-disk execution behavior where it can actually run.
-describe.skipIf(process.platform === 'win32')(
+(process.platform === 'win32' ? describe.skip : describe)(
   'gitCommand — an untrusted repository cannot execute code through git',
   () => {
     const realExec = promisify(execFile);
@@ -686,6 +714,63 @@ describe.skipIf(process.platform === 'win32')(
       await fs.writeFile(path.join(repoDir, 'pwn.sh'), `#!/bin/sh\ntouch "${controlMarker}"\nexit 0\n`);
       await realExec('git', ['-C', repoDir, 'diff']);
       expect(await exists(controlMarker)).toBe(true);
+    });
+  },
+);
+
+// End-to-end, nothing mocked: git C-quotes bytes outside ASCII by default
+// (core.quotePath=true), so a UTF-8 filename comes back as "\346\227\245...".
+// Repomix prints those paths in the git-logs and git-diffs sections and uses them
+// as the keys for its change-count sort, so every command must request git's
+// raw-UTF-8 form.
+// POSIX-only: the filename is created as UTF-8 on disk; Windows filesystem
+// APIs and the child-process encoding are a separate concern.
+(process.platform === 'win32' ? describe.skip : describe)(
+  'gitCommand — non-ASCII filenames are emitted verbatim',
+  () => {
+    const realExec = promisify(execFile);
+    const unicodeName = '日本語.txt';
+    let repoDir: string;
+
+    beforeAll(async () => {
+      repoDir = await fs.mkdtemp(path.join(os.tmpdir(), 'repomix-git-quotepath-'));
+      const git = (...args: string[]) => execFileSync('git', ['-C', repoDir, ...args], { stdio: 'pipe' });
+      git('init', '-q');
+      git('config', 'user.email', 'a@b.c');
+      git('config', 'user.name', 'a');
+      // Reproduce git's default on a machine whose global config does not already
+      // override it, so the assertion cannot pass just because quotePath is off.
+      git('config', 'core.quotePath', 'true');
+      await fs.writeFile(path.join(repoDir, unicodeName), 'x\n');
+      await fs.writeFile(path.join(repoDir, 'plain.txt'), 'y\n');
+      git('add', '.');
+      git('commit', '-q', '-m', 'init');
+    });
+
+    afterAll(async () => {
+      await fs.rm(repoDir, { recursive: true, force: true });
+    });
+
+    test('execGitLogFilenames returns the raw filename', async () => {
+      const files = await execGitLogFilenames(repoDir, 100, { execFileAsync: realExec });
+
+      expect(files).toContain(unicodeName);
+    });
+
+    test('execGitLog returns the raw filename', async () => {
+      const log = await execGitLog(repoDir, 100, '%x00', { execFileAsync: realExec });
+
+      expect(log).toContain(unicodeName);
+      expect(log).not.toContain('\\346');
+    });
+
+    test('execGitDiff returns the raw filename', async () => {
+      await fs.writeFile(path.join(repoDir, unicodeName), 'changed\n');
+
+      const diff = await execGitDiff(repoDir, [], { execFileAsync: realExec });
+
+      expect(diff).toContain(`diff --git a/${unicodeName} b/${unicodeName}`);
+      expect(diff).not.toContain('\\346');
     });
   },
 );
