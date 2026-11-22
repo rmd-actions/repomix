@@ -1,39 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProcessedFile } from '../../../src/core/file/fileTypes.js';
 import { calculateFileMetrics } from '../../../src/core/metrics/calculateFileMetrics.js';
-import type { MetricsTaskRunner } from '../../../src/core/metrics/metricsWorkerRunner.js';
-import { __resetTokenCountCacheForTests } from '../../../src/core/metrics/tokenCountCache.js';
 import {
-  countTokens,
-  type MetricsWorkerTask,
-  type TokenCountBatchTask,
-  type TokenCountTask,
-} from '../../../src/core/metrics/workers/calculateMetricsWorker.js';
-import type { WorkerOptions } from '../../../src/shared/processConcurrency.js';
+  __resetTokenCountCacheForTests,
+  __setTokenCountCacheEnvForTests,
+} from '../../../src/core/metrics/tokenCountCache.js';
 import type { RepomixProgressCallback } from '../../../src/shared/types.js';
-
-vi.mock('../../shared/processConcurrency', () => ({
-  getProcessConcurrency: () => 1,
-}));
-
-const mockInitTaskRunner = (_options: WorkerOptions): MetricsTaskRunner => {
-  return {
-    run: async (task: MetricsWorkerTask) => {
-      if ('items' in task) {
-        const batchTask = task as TokenCountBatchTask;
-        return Promise.all(
-          batchTask.items.map((item) =>
-            countTokens({ content: item.content, encoding: batchTask.encoding, path: item.path }),
-          ),
-        );
-      }
-      return countTokens(task as TokenCountTask);
-    },
-    cleanup: async () => {
-      // Mock cleanup - no-op for tests
-    },
-  };
-};
+import { createInlineMetricsTaskRunner } from '../../testing/taskRunnerDoubles.js';
 
 describe('calculateFileMetrics', () => {
   // The suite-wide `tests/testing/vitestSetup.ts` disables the token-count
@@ -51,7 +24,7 @@ describe('calculateFileMetrics', () => {
     const progressCallback: RepomixProgressCallback = vi.fn();
 
     const result = await calculateFileMetrics(processedFiles, targetFilePaths, 'o200k_base', progressCallback, {
-      taskRunner: mockInitTaskRunner({ numOfTasks: 1, workerType: 'calculateMetrics', runtime: 'worker_threads' }),
+      taskRunner: createInlineMetricsTaskRunner(),
     });
 
     expect(result).toEqual([
@@ -66,7 +39,7 @@ describe('calculateFileMetrics', () => {
     const progressCallback: RepomixProgressCallback = vi.fn();
 
     const result = await calculateFileMetrics(processedFiles, targetFilePaths, 'o200k_base', progressCallback, {
-      taskRunner: mockInitTaskRunner({ numOfTasks: 1, workerType: 'calculateMetrics', runtime: 'worker_threads' }),
+      taskRunner: createInlineMetricsTaskRunner(),
     });
 
     expect(result).toEqual([]);
@@ -84,7 +57,7 @@ describe('calculateFileMetrics', () => {
     const progressCallback: RepomixProgressCallback = vi.fn();
 
     const result = await calculateFileMetrics(processedFiles, targetFilePaths, 'o200k_base', progressCallback, {
-      taskRunner: mockInitTaskRunner({ numOfTasks: 2, workerType: 'calculateMetrics', runtime: 'worker_threads' }),
+      taskRunner: createInlineMetricsTaskRunner(),
     });
 
     expect(result).toHaveLength(2);
@@ -109,11 +82,7 @@ describe('calculateFileMetrics', () => {
     const targetFilePaths = processedFiles.map((f) => f.path);
     const progressCallback: RepomixProgressCallback = vi.fn();
 
-    const taskRunner = mockInitTaskRunner({
-      numOfTasks: fileCount,
-      workerType: 'calculateMetrics',
-      runtime: 'worker_threads',
-    });
+    const taskRunner = createInlineMetricsTaskRunner();
     const runSpy = vi.spyOn(taskRunner, 'run');
 
     const result = await calculateFileMetrics(processedFiles, targetFilePaths, 'o200k_base', progressCallback, {
@@ -122,8 +91,9 @@ describe('calculateFileMetrics', () => {
 
     expect(result).toHaveLength(fileCount);
     expect(result.map((r) => r.path)).toEqual(targetFilePaths);
+    expect(result.map((r) => r.charCount)).toEqual(processedFiles.map((_, i) => i + 1));
     for (const r of result) {
-      expect(r.charCount).toBeGreaterThan(0);
+      // Exact counts for 120 runs of 'x' would only restate the tokenizer, so a positive count is enough here
       expect(r.tokenCount).toBeGreaterThan(0);
     }
 
@@ -137,20 +107,14 @@ describe('calculateFileMetrics', () => {
   // production cache-hit fast path is therefore not exercised by the default
   // tests — these scenarios opt back in and assert the end-to-end behavior.
   describe('token-count cache (production path)', () => {
-    let prevCacheEnv: string | undefined;
-
     beforeEach(() => {
-      prevCacheEnv = process.env.REPOMIX_TOKEN_CACHE;
-      delete process.env.REPOMIX_TOKEN_CACHE;
+      // An env without REPOMIX_TOKEN_CACHE=0 re-enables the cache for these tests only.
+      __setTokenCountCacheEnvForTests({});
       __resetTokenCountCacheForTests();
     });
 
     afterEach(() => {
-      if (prevCacheEnv === undefined) {
-        delete process.env.REPOMIX_TOKEN_CACHE;
-      } else {
-        process.env.REPOMIX_TOKEN_CACHE = prevCacheEnv;
-      }
+      __setTokenCountCacheEnvForTests();
       __resetTokenCountCacheForTests();
     });
 
@@ -162,11 +126,7 @@ describe('calculateFileMetrics', () => {
       const targetFilePaths = processedFiles.map((f) => f.path);
       const progressCallback: RepomixProgressCallback = vi.fn();
 
-      const taskRunner = mockInitTaskRunner({
-        numOfTasks: 2,
-        workerType: 'calculateMetrics',
-        runtime: 'worker_threads',
-      });
+      const taskRunner = createInlineMetricsTaskRunner();
       const runSpy = vi.spyOn(taskRunner, 'run');
 
       // First run: cold cache — every file dispatches to a worker batch.
@@ -174,7 +134,8 @@ describe('calculateFileMetrics', () => {
         taskRunner,
       });
       expect(first).toHaveLength(2);
-      expect(runSpy.mock.calls.length).toBeGreaterThan(0);
+      // Both files fit in a single batch
+      expect(runSpy).toHaveBeenCalledTimes(1);
 
       // Second run with identical inputs: every file should hit the in-memory
       // cache populated by the first run, so taskRunner.run must not be

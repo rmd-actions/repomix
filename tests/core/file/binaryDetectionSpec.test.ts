@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { collectFiles } from '../../../src/core/file/fileCollect.js';
+import { createTempDir } from '../../testing/tempDir.js';
 import { createMockConfig } from '../../testing/testUtils.js';
 
 // Behavior-level regression tests for binary detection at the file-read layer.
@@ -32,15 +32,12 @@ describe('binary detection spec', () => {
   let tmpDir: string;
 
   beforeEach(async () => {
-    tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'repomix-binary-spec-'));
-  });
-
-  afterEach(async () => {
-    await fs.rm(tmpDir, { recursive: true, force: true });
+    tmpDir = await createTempDir('repomix-binary-spec-');
   });
 
   it('skips binaries identified by extension (PNG) without including their bytes', async () => {
     await fs.writeFile(path.join(tmpDir, 'image.png'), Buffer.concat([PNG_MAGIC, Buffer.alloc(64, 0xff)]));
+    // biome-ignore lint/suspicious/noTemplateCurlyInString: literal TypeScript source written to a fixture file
     await fs.writeFile(path.join(tmpDir, 'clean.ts'), 'export const greet = (n: string) => `hi ${n}`;\n');
 
     const { rawFiles, skippedFiles } = await collectFiles(['image.png', 'clean.ts'], tmpDir, createMockConfig());

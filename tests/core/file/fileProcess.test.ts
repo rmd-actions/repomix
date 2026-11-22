@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { FileManipulator } from '../../../src/core/file/fileManipulate.js';
-import { applyLightweightTransforms, processFiles } from '../../../src/core/file/fileProcess.js';
+import {
+  applyLightweightTransforms,
+  getFileProcessMaxWorkerThreads,
+  processFiles,
+} from '../../../src/core/file/fileProcess.js';
 import type { ProcessedFile, RawFile } from '../../../src/core/file/fileTypes.js';
-import type { FileProcessTask } from '../../../src/core/file/workers/fileProcessWorker.js';
 import fileProcessWorker from '../../../src/core/file/workers/fileProcessWorker.js';
 import type { WorkerOptions } from '../../../src/shared/processConcurrency.js';
+import { inlineInitTaskRunner } from '../../testing/taskRunnerDoubles.js';
 import { createMockConfig } from '../../testing/testUtils.js';
 
 const createMockFileManipulator = (): FileManipulator => ({
@@ -19,18 +23,52 @@ const mockGetFileManipulator = (filePath: string): FileManipulator | null => {
   return null;
 };
 
-const mockInitTaskRunner = <T, R>(_options: WorkerOptions) => {
-  return {
-    run: async (task: T) => {
-      return (await fileProcessWorker(task as FileProcessTask)) as R;
-    },
-    cleanup: async () => {
-      // Mock cleanup - no-op for tests
-    },
-  };
-};
+const mockInitTaskRunner = inlineInitTaskRunner(fileProcessWorker);
 
 describe('fileProcess', () => {
+  describe('getFileProcessMaxWorkerThreads', () => {
+    it('scales the cap with the square root of the task count when compressing on Bun', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 1, true, 18)).toBe(1);
+      expect(getFileProcessMaxWorkerThreads(true, 75, true, 18)).toBe(1);
+      expect(getFileProcessMaxWorkerThreads(true, 400, true, 18)).toBe(3);
+      expect(getFileProcessMaxWorkerThreads(true, 1300, true, 18)).toBe(5);
+    });
+
+    it('never uses more than half the cores', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 18)).toBe(9);
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 8)).toBe(4);
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 4)).toBe(2);
+    });
+
+    it('rounds half the cores up on odd core counts', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 3)).toBe(2);
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 5)).toBe(3);
+    });
+
+    it('uses a second thread on two cores only for large repositories', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 400, true, 2)).toBe(1);
+      expect(getFileProcessMaxWorkerThreads(true, 1300, true, 2)).toBe(1);
+      expect(getFileProcessMaxWorkerThreads(true, 2000, true, 2)).toBe(2);
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 2)).toBe(2);
+    });
+
+    it('uses a single thread on a single core', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 8200, true, 1)).toBe(1);
+    });
+
+    it('never returns less than one thread', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 0, true, 18)).toBe(1);
+    });
+
+    it('keeps the default sizing on Node.js', () => {
+      expect(getFileProcessMaxWorkerThreads(true, 1300, false, 18)).toBeUndefined();
+    });
+
+    it('keeps the default sizing on Bun when nothing is compressed', () => {
+      expect(getFileProcessMaxWorkerThreads(false, 1300, true, 18)).toBeUndefined();
+    });
+  });
+
   describe('processFiles', () => {
     it('should process multiple files with worker path', async () => {
       const mockRawFiles: RawFile[] = [
@@ -53,6 +91,26 @@ describe('fileProcess', () => {
         { path: 'file1.js', content: 'const a = 1;' },
         { path: 'file2.js', content: 'const b = 2;' },
       ]);
+    });
+
+    it('keeps deps as the fourth positional parameter and takes the abort signal after it', async () => {
+      const seenOptions: WorkerOptions[] = [];
+      const recordingInitTaskRunner = <T, R>(options: WorkerOptions) => {
+        seenOptions.push(options);
+        return mockInitTaskRunner<T, R>(options);
+      };
+      const rawFiles: RawFile[] = [{ path: 'file1.js', content: '// comment\nconst a = 1;' }];
+      const config = createMockConfig({ output: { removeComments: true } });
+      const deps = { initTaskRunner: recordingInitTaskRunner, getFileManipulator: mockGetFileManipulator };
+      const { signal } = new AbortController();
+
+      // Pre-cancellation library call shape: (files, config, callback, deps).
+      await processFiles(rawFiles, config, () => {}, deps);
+      await processFiles(rawFiles, config, () => {}, deps, signal);
+
+      expect(seenOptions).toHaveLength(2);
+      expect(seenOptions[0].signal).toBeUndefined();
+      expect(seenOptions[1].signal).toBe(signal);
     });
 
     it('should apply all transforms in combined worker + lightweight pipeline', async () => {

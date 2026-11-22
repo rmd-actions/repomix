@@ -1,8 +1,8 @@
 import * as fs from 'node:fs/promises';
-import * as os from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { buildWatchIgnoreFilter } from '../../../../src/cli/actions/watch/watchIgnore.js';
+import { createTempDir } from '../../../testing/tempDir.js';
 import { createMockConfig, isWindows } from '../../../testing/testUtils.js';
 
 describe('buildWatchIgnoreFilter', () => {
@@ -11,17 +11,13 @@ describe('buildWatchIgnoreFilter', () => {
   beforeEach(async () => {
     // Real filesystem + real timers: the builder reads .gitignore via globby, which
     // needs a .git directory present to anchor gitignore resolution.
-    tmpRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'repomix-watch-ignore-'));
+    tmpRoot = await createTempDir('repomix-watch-ignore-');
     await fs.mkdir(path.join(tmpRoot, '.git'), { recursive: true });
     await fs.mkdir(path.join(tmpRoot, 'node_modules', 'pkg'), { recursive: true });
     await fs.mkdir(path.join(tmpRoot, 'build-cache'), { recursive: true });
     await fs.mkdir(path.join(tmpRoot, 'src'), { recursive: true });
     await fs.writeFile(path.join(tmpRoot, '.gitignore'), 'build-cache/\n');
     await fs.writeFile(path.join(tmpRoot, 'src', 'index.ts'), 'export const a = 1;\n');
-  });
-
-  afterEach(async () => {
-    await fs.rm(tmpRoot, { recursive: true, force: true });
   });
 
   const buildFilter = async () => {
@@ -42,7 +38,7 @@ describe('buildWatchIgnoreFilter', () => {
 
   // globby's gitignore resolution behaves differently on Windows, so this case is
   // skipped there (mirrors the .gitignore tests in fileSearch.test.ts).
-  it.runIf(!isWindows)('ignores gitignored directories themselves, not just their descendants', async () => {
+  (isWindows ? it.skip : it)('ignores gitignored directories themselves, not just their descendants', async () => {
     const ignored = await buildFilter();
     expect(ignored(path.join(tmpRoot, 'build-cache'))).toBe(true);
     expect(ignored(path.join(tmpRoot, 'build-cache', 'cached.tmp'))).toBe(true);
@@ -67,6 +63,31 @@ describe('buildWatchIgnoreFilter', () => {
     // `cachedir/` is normalized to `cachedir` (matching the packer), so the directory itself
     // matches and chokidar prunes it instead of descending.
     expect(ignored(path.join(tmpRoot, 'cachedir'))).toBe(true);
+  });
+
+  it('ignores files matched by trailing-wildcard patterns but keeps watching ignore-control files', async () => {
+    const config = createMockConfig({
+      cwd: tmpRoot,
+      ignore: { useGitignore: false, useDefaultPatterns: true, useDotIgnore: false, customPatterns: ['**/.*'] },
+    });
+    const ignored = await buildWatchIgnoreFilter([tmpRoot], config);
+    expect(ignored(path.join(tmpRoot, 'npm-debug.log.1'))).toBe(true);
+    expect(ignored(path.join(tmpRoot, '.env.example'))).toBe(true);
+    // Editing these changes the ignore rules, so it must still trigger a repack.
+    expect(ignored(path.join(tmpRoot, '.gitignore'))).toBe(false);
+    expect(ignored(path.join(tmpRoot, 'src', '.repomixignore'))).toBe(false);
+  });
+
+  it('ignores the output file even when it is named like an ignore-control file', async () => {
+    const config = createMockConfig({
+      cwd: tmpRoot,
+      output: { filePath: '.ignore' },
+      ignore: { useGitignore: false, useDefaultPatterns: true, useDotIgnore: false, customPatterns: [] },
+    });
+    const ignored = await buildWatchIgnoreFilter([tmpRoot], config);
+    // Watching it would make every repack trigger another one.
+    expect(ignored(path.join(tmpRoot, '.ignore'))).toBe(true);
+    expect(ignored(path.join(tmpRoot, '.gitignore'))).toBe(false);
   });
 
   it('still applies ignore rules to in-root directories whose name starts with ".."', async () => {

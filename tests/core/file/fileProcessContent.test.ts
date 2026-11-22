@@ -1,13 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RepomixConfigMerged } from '../../../src/config/configSchema.js';
-import { getFileManipulator } from '../../../src/core/file/fileManipulate.js';
+import type { FileManipulator } from '../../../src/core/file/fileManipulate.js';
 import { processContent } from '../../../src/core/file/fileProcessContent.js';
 import type { RawFile } from '../../../src/core/file/fileTypes.js';
-import { parseFile } from '../../../src/core/treeSitter/parseFile.js';
-
-vi.mock('../../../src/core/file/fileManipulate.js');
-vi.mock('../../../src/core/treeSitter/parseFile.js');
-vi.mock('../../../src/shared/logger.js');
+import type { parseFile as parseFileType } from '../../../src/core/treeSitter/parseFile.js';
+import { silenceLogger } from '../../testing/loggerDoubles.js';
 
 describe('processContent', () => {
   const mockManipulator = {
@@ -15,10 +12,15 @@ describe('processContent', () => {
     removeEmptyLines: vi.fn((content) => content.split('\n').filter(Boolean).join('\n')),
   };
 
+  const getFileManipulator = vi.fn<(filePath: string) => FileManipulator | null>();
+  const parseFile = vi.fn<typeof parseFileType>();
+  const deps = { getFileManipulator, parseFile };
+
   beforeEach(() => {
     vi.resetAllMocks();
-    vi.mocked(getFileManipulator).mockReturnValue(mockManipulator);
-    vi.mocked(parseFile).mockResolvedValue('parsed content');
+    silenceLogger();
+    getFileManipulator.mockReturnValue(mockManipulator as unknown as FileManipulator);
+    parseFile.mockResolvedValue('parsed content');
   });
 
   it('should process content with default config', async () => {
@@ -35,7 +37,7 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(result).toBe('const x = 1;\n\nconst y = 2;');
     expect(mockManipulator.removeComments).not.toHaveBeenCalled();
   });
@@ -54,7 +56,7 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(mockManipulator.removeComments).toHaveBeenCalledWith(rawFile.content);
     expect(result).toBe('const x = 1; \nconst y = 2;');
   });
@@ -73,7 +75,7 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(parseFile).toHaveBeenCalledWith(rawFile.content, rawFile.path, config);
     expect(result).toBe('parsed content');
   });
@@ -92,9 +94,9 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    vi.mocked(parseFile).mockResolvedValue(undefined);
+    parseFile.mockResolvedValue(undefined);
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(result).toBe(rawFile.content);
   });
 
@@ -116,9 +118,9 @@ describe('processContent', () => {
     } as RepomixConfigMerged;
 
     const error = new Error('Parse error');
-    vi.mocked(parseFile).mockRejectedValue(error);
+    parseFile.mockRejectedValue(error);
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(result).toBe(rawFile.content);
   });
 
@@ -138,9 +140,9 @@ describe('processContent', () => {
 
     // Compression fails, so the fallback should be the already comment-stripped
     // content (the best available content at this stage), not the raw original.
-    vi.mocked(parseFile).mockResolvedValue(undefined);
+    parseFile.mockResolvedValue(undefined);
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(mockManipulator.removeComments).toHaveBeenCalledWith(rawFile.content);
     expect(result).toBe('const x = 1; \nconst y = 2;');
   });
@@ -159,9 +161,9 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    vi.mocked(getFileManipulator).mockReturnValue(null);
+    getFileManipulator.mockReturnValue(null);
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(result).toBe('some content');
   });
 
@@ -179,7 +181,7 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    const result = await processContent(rawFile, config, 'compress');
+    const result = await processContent(rawFile, config, 'compress', deps);
     expect(parseFile).toHaveBeenCalledWith(rawFile.content, rawFile.path, config);
     expect(result).toBe('parsed content');
   });
@@ -198,7 +200,7 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    const result = await processContent(rawFile, config, 'full');
+    const result = await processContent(rawFile, config, 'full', deps);
     expect(parseFile).not.toHaveBeenCalled();
     expect(result).toBe('const x = 1;');
   });
@@ -217,7 +219,7 @@ describe('processContent', () => {
       },
     } as RepomixConfigMerged;
 
-    const result = await processContent(rawFile, config);
+    const result = await processContent(rawFile, config, undefined, deps);
     expect(parseFile).toHaveBeenCalledWith(rawFile.content, rawFile.path, config);
     expect(result).toBe('parsed content');
   });

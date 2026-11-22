@@ -2,20 +2,9 @@ import { beforeEach, describe, expect, test, vi } from 'vitest';
 import type { RepomixConfigMerged } from '../../../src/config/configSchema.js';
 import type { ProcessedFile } from '../../../src/core/file/fileTypes.js';
 import type { GitDiffResult } from '../../../src/core/git/gitDiffHandle.js';
-import * as gitDiffModule from '../../../src/core/git/gitDiffHandle.js';
-import * as gitRepositoryModule from '../../../src/core/git/gitRepositoryHandle.js';
 import { buildOutputGeneratorContext, generateOutput } from '../../../src/core/output/outputGenerate.js';
 import type { RenderContext } from '../../../src/core/output/outputGeneratorTypes.js';
 import { createMockConfig } from '../../testing/testUtils.js';
-
-// Mock the git modules
-vi.mock('../../../src/core/git/gitDiffHandle.js', () => ({
-  getWorkTreeDiff: vi.fn(),
-}));
-
-vi.mock('../../../src/core/git/gitRepositoryHandle.js', () => ({
-  isGitRepository: vi.fn(),
-}));
 
 describe('Git Diffs in Output', () => {
   const sampleDiff = `diff --git a/file1.js b/file1.js
@@ -29,12 +18,6 @@ index 123..456 100644
   let mockConfig: RepomixConfigMerged;
 
   beforeEach(() => {
-    vi.resetAllMocks();
-
-    // Mock the git command
-    vi.mocked(gitDiffModule.getWorkTreeDiff).mockResolvedValue(sampleDiff);
-    vi.mocked(gitRepositoryModule.isGitRepository).mockResolvedValue(true);
-
     // Sample minimal config using createMockConfig utility
     mockConfig = createMockConfig({
       cwd: '/test/repo',
@@ -108,7 +91,7 @@ index 123..456 100644
       };
     });
 
-    const mockGenerateHandlebarOutput = vi.fn().mockResolvedValue('<xml>output with diffs</xml>');
+    const mockGenerateTemplateOutput = vi.fn().mockResolvedValue('<xml>output with diffs</xml>');
     const mockGenerateParsableXmlOutput = vi.fn().mockImplementation(async (renderContext: RenderContext) => {
       // Check that renderContext has gitDiffs
       expect(renderContext.gitDiffWorkTree).toBe(sampleDiff);
@@ -134,7 +117,7 @@ index 123..456 100644
       undefined,
       {
         buildOutputGeneratorContext: mockBuildOutputGeneratorContext,
-        generateHandlebarOutput: mockGenerateHandlebarOutput,
+        generateTemplateOutput: mockGenerateTemplateOutput,
         generateParsableXmlOutput: mockGenerateParsableXmlOutput,
         generateParsableJsonOutput: vi.fn(),
         sortOutputFiles: mockSortOutputFiles,
@@ -144,9 +127,9 @@ index 123..456 100644
     // Check that the output was generated with the correct template
     expect(mockBuildOutputGeneratorContext).toHaveBeenCalled();
 
-    // For non-parsable XML, should use Handlebars
+    // For non-parsable XML, should use the template renderer
     if (!mockConfig.output.parsableStyle) {
-      expect(mockGenerateHandlebarOutput).toHaveBeenCalled();
+      expect(mockGenerateTemplateOutput).toHaveBeenCalled();
     } else {
       // For parsable XML, should use XML generator
       expect(mockGenerateParsableXmlOutput).toHaveBeenCalled();
@@ -183,7 +166,7 @@ index 123..456 100644
       };
     });
 
-    const mockGenerateHandlebarOutput = vi.fn().mockImplementation(async (_config, renderContext: RenderContext) => {
+    const mockGenerateTemplateOutput = vi.fn().mockImplementation(async (_config, renderContext: RenderContext) => {
       // Check that renderContext has gitDiffs for markdown template
       expect(renderContext.gitDiffWorkTree).toBe(sampleDiff);
       return `# Markdown output with diffs\n\`\`\`diff\n${sampleDiff}\n\`\`\``;
@@ -208,15 +191,15 @@ index 123..456 100644
       undefined,
       {
         buildOutputGeneratorContext: mockBuildOutputGeneratorContext,
-        generateHandlebarOutput: mockGenerateHandlebarOutput,
+        generateTemplateOutput: mockGenerateTemplateOutput,
         generateParsableXmlOutput: mockGenerateParsableXmlOutput,
         generateParsableJsonOutput: vi.fn(),
         sortOutputFiles: mockSortOutputFiles,
       },
     );
 
-    // For markdown output, should use Handlebars
-    expect(mockGenerateHandlebarOutput).toHaveBeenCalled();
+    // For markdown output, should use the template renderer
+    expect(mockGenerateTemplateOutput).toHaveBeenCalled();
 
     // XML generator should not be called for markdown
     expect(mockGenerateParsableXmlOutput).not.toHaveBeenCalled();
